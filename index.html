@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+<meta name="theme-color" content="#070605" />
+<meta name="description" content="Five Nights at Freddy's: Night Shift — a fan-made 3D security survival horror built for mobile." />
+<title>FIVE NIGHTS AT FREDDY'S — Night Shift</title>
+<link rel="icon" type="image/svg+xml" href="assets/favicon.svg" />
+<link rel="apple-touch-icon" href="assets/favicon.svg" />
+<link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+<div id="app">
+  <div id="scene" aria-hidden="true"></div>
+
+  <!-- Cinematic frame / screen treatment -->
+  <div class="screen-fx" aria-hidden="true">
+    <div class="fx-vignette"></div>
+    <div class="fx-grain"></div>
+    <div class="fx-scan"></div>
+    <div class="fx-glitch"></div>
+  </div>
+
+  <!-- HUD -->
+  <div id="hud" class="hidden" aria-live="polite">
+    <div class="hud-top">
+      <div class="hud-chip night-chip"><span class="lbl">NIGHT</span><span id="hud-night" class="val">1</span></div>
+      <div class="hud-brand">FAZBEAR&nbsp;SECURITY</div>
+      <div class="hud-chip time-chip"><span id="hud-time" class="val">12 AM</span></div>
+    </div>
+
+    <div id="hud-hint" class="hud-hint">Drag to look around &middot; Watch the doors</div>
+
+    <div class="hud-side left">
+      <div class="side-label">WEST</div>
+      <button class="ctrl-btn door-btn" data-action="leftDoor" aria-label="Left door">
+        <span class="ctrl-icon">▤</span><span class="ctrl-text">DOOR</span><span class="ctrl-led"></span>
+      </button>
+      <button class="ctrl-btn light-btn" data-action="leftLight" aria-label="Left light">
+        <span class="ctrl-icon">☼</span><span class="ctrl-text">LIGHT</span><span class="ctrl-led"></span>
+      </button>
+    </div>
+
+    <div class="hud-side right">
+      <div class="side-label">EAST</div>
+      <button class="ctrl-btn door-btn" data-action="rightDoor" aria-label="Right door">
+        <span class="ctrl-icon">▤</span><span class="ctrl-text">DOOR</span><span class="ctrl-led"></span>
+      </button>
+      <button class="ctrl-btn light-btn" data-action="rightLight" aria-label="Right light">
+        <span class="ctrl-icon">☼</span><span class="ctrl-text">LIGHT</span><span class="ctrl-led"></span>
+      </button>
+    </div>
+
+    <div class="hud-bottom">
+      <button id="power-panel" class="power" aria-label="Power remaining">
+        <div class="power-head"><span>POWER LEFT</span><span id="power-pct">100%</span></div>
+        <div class="power-bars"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+        <div class="usage"><span>USAGE</span><div class="usage-bars" id="usage-bars"><i></i><i></i><i></i><i></i></div></div>
+      </button>
+
+      <button id="cams-btn" class="cam-btn" aria-label="Open camera tablet">
+        <span class="cam-led"></span>
+        <span class="cam-icon">▣</span>
+        <span class="cam-text">CAMERAS</span>
+        <span class="cam-key">SPACE</span>
+      </button>
+
+      <div class="vitals">
+        <button id="mute-btn" class="mini-btn" aria-label="Toggle sound">♫</button>
+        <button id="pause-btn" class="mini-btn" aria-label="Pause game">❚❚</button>
+      </div>
+    </div>
+
+    <div id="view-prompt" class="view-prompt hidden"></div>
+  </div>
+
+  <!-- Camera tablet -->
+  <div id="cam-overlay" class="hidden" aria-label="Security cameras">
+    <div class="cam-tablet">
+      <div class="cam-header">
+        <div class="cam-header-left"><span class="rec-dot"></span> FAZBEAR SECURITY</div>
+        <div class="cam-header-mid" id="cam-header-time">12:00 AM &middot; NIGHT 1</div>
+        <button id="cams-close" class="cams-close" aria-label="Close cameras">✕</button>
+      </div>
+      <div class="cam-body">
+        <div class="cam-stage">
+          <canvas id="feed-canvas" width="768" height="432"></canvas>
+          <div class="feed-grain"></div>
+          <div class="feed-scan"></div>
+          <div class="feed-glitch"></div>
+          <div class="feed-corner tl"></div><div class="feed-corner tr"></div>
+          <div class="feed-corner bl"></div><div class="feed-corner br"></div>
+          <div class="feed-label" id="feed-label">CAM 1A &middot; SHOW STAGE</div>
+          <div class="feed-rec"><span class="rec-dot"></span> REC</div>
+          <div class="feed-time" id="feed-time">12:00:00 AM</div>
+          <div class="feed-sig"><span>SIGNAL</span><i></i><i></i><i></i><i></i></div>
+        </div>
+        <div class="cam-map-panel">
+          <div class="map-title">PIZZERIA &mdash; FLOOR 1</div>
+          <div class="map-wrap">
+            <svg class="floorplan" viewBox="0 0 240 200" aria-hidden="true">
+              <rect x="8" y="8" width="224" height="184" class="fp-outline"/>
+              <rect x="70" y="18" width="100" height="54" class="fp-room"/>
+              <rect x="18" y="18" width="46" height="40" class="fp-room"/>
+              <rect x="176" y="18" width="48" height="40" class="fp-room"/>
+              <rect x="18" y="84" width="204" height="54" class="fp-room"/>
+              <rect x="92" y="142" width="56" height="42" class="fp-office"/>
+              <rect x="18" y="142" width="68" height="42" class="fp-room"/>
+              <rect x="154" y="142" width="68" height="42" class="fp-room"/>
+              <text x="120" y="48" class="fp-text">SHOW STAGE</text>
+              <text x="120" y="112" class="fp-text">DINING</text>
+              <text x="41" y="38" class="fp-text sm">COVE</text>
+              <text x="200" y="38" class="fp-text sm">BACK</text>
+              <text x="52" y="167" class="fp-text sm">W HALL</text>
+              <text x="188" y="167" class="fp-text sm">E HALL</text>
+              <text x="120" y="168" class="fp-text sm">OFFICE</text>
+              <line x1="70" y1="84" x2="70" y2="138" class="fp-line"/>
+              <line x1="170" y1="84" x2="170" y2="138" class="fp-line"/>
+              <circle cx="120" cy="45" r="4" class="fp-dot"/>
+              <circle cx="120" cy="108" r="4" class="fp-dot"/>
+              <circle cx="41" cy="38" r="4" class="fp-dot"/>
+              <circle cx="45" cy="166" r="4" class="fp-dot"/>
+              <circle cx="45" cy="132" r="4" class="fp-dot"/>
+              <circle cx="41" cy="38" r="4" class="fp-dot"/>
+              <circle cx="198" cy="166" r="4" class="fp-dot"/>
+              <circle cx="198" cy="132" r="4" class="fp-dot"/>
+              <circle cx="200" cy="38" r="4" class="fp-dot"/>
+            </svg>
+          </div>
+          <div class="cam-grid" id="cam-grid">
+            <button class="cam-sel" data-cam="1A"><b>1A</b><span>Show Stage</span></button>
+            <button class="cam-sel" data-cam="1B"><b>1B</b><span>Dining Area</span></button>
+            <button class="cam-sel" data-cam="1C"><b>1C</b><span>Pirate Cove</span></button>
+            <button class="cam-sel" data-cam="2A"><b>2A</b><span>West Hall</span></button>
+            <button class="cam-sel" data-cam="2B"><b>2B</b><span>West Corner</span></button>
+            <button class="cam-sel" data-cam="3"><b>3</b><span>Supply</span></button>
+            <button class="cam-sel" data-cam="4A"><b>4A</b><span>East Hall</span></button>
+            <button class="cam-sel" data-cam="4B"><b>4B</b><span>East Corner</span></button>
+            <button class="cam-sel" data-cam="5"><b>5</b><span>Backstage</span></button>
+          </div>
+        </div>
+      </div>
+      <div class="cam-footer">
+        <span>DRAG TO LOOK &middot; TAP A CAMERA</span>
+        <span id="cam-warn"></span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Boot / loader -->
+  <div id="boot" class="overlay boot">
+    <div class="boot-inner">
+      <div class="faz-logo"><span class="faz-top">FAZBEAR</span><span class="faz-sub">ENTERTAINMENT</span></div>
+      <div class="boot-bar"><i id="boot-fill"></i></div>
+      <div class="boot-txt" id="boot-txt">WAKING THE ANIMATRONICS…</div>
+      <button id="boot-start" class="ghost-btn hidden">ENTER</button>
+    </div>
+  </div>
+
+  <!-- Main menu -->
+  <div id="menu" class="overlay menu hidden">
+    <div class="menu-shade"></div>
+    <div class="menu-inner">
+      <div class="menu-kicker">FAZBEAR ENTERTAINMENT PRESENTS</div>
+      <h1 class="game-title"><span>FIVE NIGHTS AT</span><em>FREDDY'S</em></h1>
+      <div class="menu-sub">NIGHT SHIFT &middot; SECURITY OFFICE</div>
+
+      <div class="night-select" id="night-select" role="group" aria-label="Select night">
+        <button class="night-card" data-night="1"><span class="n-num">01</span><span class="n-name">Night 1</span><span class="n-sub">They’re new here.</span></button>
+        <button class="night-card locked" data-night="2"><span class="n-num">02</span><span class="n-name">Night 2</span><span class="n-sub">Locked</span></button>
+        <button class="night-card locked" data-night="3"><span class="n-num">03</span><span class="n-name">Night 3</span><span class="n-sub">Locked</span></button>
+        <button class="night-card locked" data-night="4"><span class="n-num">04</span><span class="n-name">Night 4</span><span class="n-sub">Locked</span></button>
+        <button class="night-card locked" data-night="5"><span class="n-num">05</span><span class="n-name">Night 5</span><span class="n-sub">Locked</span></button>
+      </div>
+
+      <button id="start-night" class="big-btn">START SHIFT</button>
+      <div class="menu-tips">
+        <div><b>LOOK</b> drag anywhere</div>
+        <div><b>DOORS</b> hold them shut</div>
+        <div><b>LIGHTS</b> check the halls</div>
+        <div><b>WATCH</b> power &amp; cameras</div>
+      </div>
+      <div class="menu-foot">FAN-MADE TRIBUTE &middot; NOT AFFILIATED WITH SCOTT CAWTHON / STEEL WOOL &middot; SOUND ON</div>
+    </div>
+    <button id="menu-sound" class="mini-btn menu-sound" aria-label="Toggle sound">♫</button>
+  </div>
+
+  <!-- Night intro -->
+  <div id="intro" class="overlay intro hidden">
+    <div class="intro-inner">
+      <div class="intro-kicker">FAZBEAR ENTERTAINMENT</div>
+      <div class="intro-night" id="intro-night">NIGHT 1</div>
+      <div class="intro-time">12:00 AM</div>
+      <p class="intro-txt" id="intro-txt">Welcome to your first night. Keep the doors shut when they get close, and don’t waste power.</p>
+      <button id="intro-go" class="big-btn">BEGIN SHIFT</button>
+      <button id="intro-skip" class="ghost-btn">SKIP</button>
+    </div>
+  </div>
+
+  <!-- Pause -->
+  <div id="pause" class="overlay pause hidden">
+    <div class="panel">
+      <h2>SHIFT PAUSED</h2>
+      <button id="resume-btn" class="big-btn">RESUME</button>
+      <button id="pause-menu-btn" class="ghost-btn">QUIT TO MENU</button>
+    </div>
+  </div>
+
+  <!-- Game over -->
+  <div id="gameover" class="overlay gameover hidden">
+    <div class="jumpscare-static"></div>
+    <div class="go-inner">
+      <div class="go-kicker">SHIFT TERMINATED</div>
+      <h2 class="go-title">GAME OVER</h2>
+      <p id="go-sub">Something found you in the dark.</p>
+      <div class="go-stats">
+        <div><span>NIGHT</span><b id="go-night">1</b></div>
+        <div><span>POWER</span><b id="go-power">0%</b></div>
+        <div><span>REACHED</span><b id="go-time">3 AM</b></div>
+      </div>
+      <button id="retry-btn" class="big-btn">TRY AGAIN</button>
+      <button id="go-menu-btn" class="ghost-btn">MAIN MENU</button>
+    </div>
+  </div>
+
+  <!-- Win -->
+  <div id="win" class="overlay win hidden">
+    <div class="win-glow"></div>
+    <div class="win-inner">
+      <div class="win-kicker">SHIFT COMPLETE</div>
+      <h2 class="win-title">6 AM</h2>
+      <p class="win-sub" id="win-sub">You survived Night 1.</p>
+      <div class="paycheck">
+        <div class="pay-head">FAZBEAR ENTERTAINMENT &mdash; PAYROLL</div>
+        <div class="pay-row"><span>NIGHT SHIFT (6 HRS)</span><b>$20.00</b></div>
+        <div class="pay-row muted"><span>HAZARD PAY</span><b>$0.00</b></div>
+        <div class="pay-row total"><span>TOTAL</span><b>$20.00</b></div>
+      </div>
+      <div class="win-stars" id="win-stars">★</div>
+      <button id="next-night-btn" class="big-btn">NEXT NIGHT</button>
+      <button id="win-menu-btn" class="ghost-btn">MAIN MENU</button>
+    </div>
+  </div>
+
+  <div id="flash" class="hidden"></div>
+  <div id="toast" class="hidden"></div>
+  <div id="rotate-hint" class="hidden">↻ Rotate for the full office</div>
+</div>
+<script type="module" src="src/main.js"></script>
+</body>
+</html>
