@@ -28,7 +28,22 @@ const els = {
   feedCanvas: $('#feed-canvas'),
   feedLabel: $('#feed-label'),
   feedTime: $('#feed-time'),
+  feedSig: $('#feed-sig'),
   camWarn: $('#cam-warn'),
+  camSignalVal: $('#cam-signal-val'),
+  signalBars: $$('#signal-bars i'),
+  musicBoxPanel: $('#musicbox-panel'),
+  mbPct: $('#mb-pct'),
+  mbBars: $$('#mb-bars i'),
+  windBtn: $('#wind-btn'),
+  lureBtn: $('#lure-btn'),
+  lureCd: $('#lure-cd'),
+  rebootBtn: $('#reboot-btn'),
+  auxOverlay: $('#aux-overlay'),
+  auxBreakers: $('#aux-breakers'),
+  auxFill: $('#aux-fill'),
+  auxStatus: $('#aux-status'),
+  auxClock: $('#aux-clock'),
   muteBtn: $('#mute-btn'),
   menuSound: $('#menu-sound'),
   pauseBtn: $('#pause-btn'),
@@ -75,7 +90,7 @@ let promptTimer = null;
 let deathTimer = null;
 let winTimer = null;
 let fpsAcc = 0, fpsFrames = 0, quality = 1, goodWindows = 0;
-let lastHud = { time: '', power: -1, usage: -1, doors: '', lights: '', cam: null, low: null };
+let lastHud = { time: '', power: -1, usage: -1, signal: -1, doors: '', lights: '', cam: null, low: null };
 let look = { yaw: 0, pitch: 0 };
 let drag = null;
 const keys = new Set();
@@ -86,7 +101,9 @@ const INTROS = [
   { t: 'They moved on their own last night. Management says it’s a programming quirk.', k: 'Tip: Pirate Cove gets restless if you ignore the cameras.' },
   { t: 'The suits are walking again. Bonnie favours the west hall. Chica takes the east.', k: 'Tip: check the corner cams often. They only attack when the door is open.' },
   { t: 'Four nights in. You’re starting to recognise the footsteps.', k: 'Tip: power is life. One door at a time is usually enough.' },
-  { t: 'Last night. The building feels different tonight. The music box started on its own.', k: 'Tip: at 5 AM, hold on. They get desperate.' }
+  { t: 'Last night. The building feels different tonight. The music box started on its own.', k: 'Tip: at 5 AM, hold on. They get desperate.' },
+  { t: 'Nobody scheduled you for tonight. The office lights were already on when you arrived.', k: 'Tip: wind the music box on CAM 6. If it stops, the Puppet comes.' },
+  { t: 'This is the shift they don’t put on the payroll. The suits remember every night you survived.', k: 'Tip: use the audio lure to reset them, and save the aux breaker for a blackout.' }
 ];
 
 /* ------------------------------------------------------------------ boot */
@@ -131,6 +148,24 @@ async function boot() {
       showPrompt(side === 'left' ? 'SOMETHING IS IN THE WEST DOORWAY — CLOSE IT' : 'SOMETHING IS IN THE EAST DOORWAY — CLOSE IT', 2400);
     },
     onMessage: text => showToast(text),
+    onLure: (cam, hit) => {
+      if (hit) showToast(`Audio lure placed on CAM ${cam}. ${hit.toUpperCase()} is listening.`, 'good');
+      else showToast(`Audio lure placed on CAM ${cam}. Nothing moved.`);
+    },
+    onAux: handleAux,
+    onMusicBox: () => {
+      showPrompt('THE MUSIC BOX HAS STOPPED — WIND IT ON CAM 6', 3200);
+      world.addFlicker(.8);
+      audio.setTension(.62);
+    },
+    onPuppet: level => {
+      if (level === 1) showToast('Something is climbing out of the box.');
+      else {
+        showPrompt('THE PUPPET IS OUT — IT KNOWS WHERE YOU ARE', 3200);
+        world.addFlicker(1);
+        audio.setTension(.95);
+      }
+    },
     onMove: () => {
       if (game.camOpen) glitchFeed(1);
     }
@@ -166,6 +201,9 @@ function startMenu() {
   world.hideAllCharacters();
   updateNightCards();
   updateMuteUI();
+  els.auxOverlay.classList.add('hidden');
+  document.body.classList.remove('aux-active', 'cam-open');
+  auxRun.active = false;
 }
 
 function updateNightCards() {
@@ -214,11 +252,15 @@ function beginNightFlow(n) {
   els.toast.classList.add('hidden');
   if (promptTimer) clearTimeout(promptTimer);
   els.viewPrompt.classList.add('hidden');
+  els.auxOverlay.classList.add('hidden');
+  document.body.classList.remove('aux-active', 'power-low', 'cam-open');
+  auxRun.active = false;
 
   world.setMode('office');
   world.reset();
   world.setPower(1);
   world.hideAllCharacters();
+  els.hudNight.textContent = n;
   world._foxyRunning = false;
   world.setFoxyRunning(false);
   cornerCache.left = cornerCache.right = null;
@@ -228,7 +270,7 @@ function beginNightFlow(n) {
   world.pitch = world.targetPitch = -0.07;
   world.lookEnabled = false;
 
-  const intro = INTROS[n - 1] || INTROS[4];
+  const intro = INTROS[n - 1] || INTROS[6];
   els.introNight.textContent = `NIGHT ${n}`;
   els.introTxt.innerHTML = `${intro.t}<br><br><span style="color:#8f8269;font-size:11.5px">${intro.k}</span>`;
   els.intro.classList.remove('hidden');
@@ -254,6 +296,12 @@ function beginShift() {
   if (selectedNight === 1) {
     setTimeout(() => showToast('Tap LIGHT on either side to check the halls.'), 4500);
   }
+  setTimeout(() => {
+    if (state === 'playing') showToast('CAM 6 — hold WIND to keep the music box playing.');
+  }, 13000);
+  setTimeout(() => {
+    if (state === 'playing') showToast('On cameras, LURE distracts anything in that room.');
+  }, 26000);
 }
 
 els.introGo.addEventListener('click', () => { audio.init(); audio.click(); beginShift(); });
@@ -314,6 +362,41 @@ els.camsBtn.addEventListener('click', () => {
   if (game.camOpen) game.closeCams(); else game.openCams();
 });
 els.camsClose.addEventListener('click', () => { if (game.camOpen) game.closeCams(); });
+els.lureBtn.addEventListener('click', () => {
+  if (!game.camOpen) return;
+  audio.init();
+  const res = game.lure();
+  if (!res.ok) {
+    if (res.reason === 'cooldown') showToast(`Lure recharging — ${res.t.toFixed(1)}s`);
+    else if (res.reason === 'empty') showToast('That room is empty.');
+    audio.ui();
+    return;
+  }
+  glitchFeed(1.2);
+  feed.drawStaticBurst(1.2);
+  updateCamTools();
+});
+els.rebootBtn.addEventListener('click', () => {
+  if (!game.camOpen) return;
+  audio.init();
+  game.rebootCams();
+  updateCamTools();
+});
+function setWind(on) {
+  if (!game || !game.camOpen || game.cam !== '6') on = false;
+  game.windHeld = on;
+  els.windBtn.classList.toggle('on', on);
+  if (on) {
+    audio.ui();
+    audio.setTension(.32);
+  } else if (game.musicBox > 20) {
+    audio.setTension(.42);
+  }
+}
+els.windBtn.addEventListener('pointerdown', e => { e.preventDefault(); audio.init(); setWind(true); });
+els.windBtn.addEventListener('pointerup', () => setWind(false));
+els.windBtn.addEventListener('pointerleave', () => setWind(false));
+els.windBtn.addEventListener('pointercancel', () => setWind(false));
 
 $$('.cam-sel').forEach(btn => {
   btn.addEventListener('click', () => {
@@ -332,6 +415,8 @@ window.addEventListener('keydown', e => {
     if (e.key === '2') game.toggleLight('left');
     if (e.key === '3') game.toggleLight('right');
     if (e.key === '4') game.toggleDoor('right');
+    if (e.key.toLowerCase() === 'q' && game.camOpen) els.lureBtn.click();
+    if (e.key.toLowerCase() === 'r' && game.camOpen) els.rebootBtn.click();
   } else if (state === 'paused' && e.key === 'Escape') {
     resumeGame();
   }
@@ -340,17 +425,23 @@ window.addEventListener('keyup', e => keys.delete(e.key.toLowerCase()));
 
 function handleCams(open) {
   if (open) {
+    document.body.classList.add('cam-open');
     els.camOverlay.classList.remove('hidden');
     els.camsBtn.classList.add('active');
     els.viewPrompt.classList.add('hidden');
+    els.hudHint.classList.add('fade');
     feed.setCam(game.cam);
     updateActiveCam(game.cam);
     glitchFeed(1.4);
     feed.draw(game, 0.016);
     setFeedClock();
+    updateCamTools();
   } else {
+    document.body.classList.remove('cam-open');
     els.camOverlay.classList.add('hidden');
     els.camsBtn.classList.remove('active');
+    els.musicBoxPanel.classList.add('hidden');
+    els.windBtn.classList.remove('on');
     if (state === 'playing') {
       world.lookEnabled = true;
       showHint('Tablet down · Check the doors');
@@ -359,20 +450,103 @@ function handleCams(open) {
   }
 }
 function handleCamSwitch(id) {
+  feed.setCam(id);
   updateActiveCam(id);
+  updateCamTools();
+  feed.draw(game, 0.016);
   glitchFeed(1);
+}
+function updateCamTools() {
+  const onBox = game.camOpen && game.cam === '6';
+  els.musicBoxPanel.classList.toggle('hidden', !onBox);
+  els.lureBtn.classList.toggle('disabled', !game.camOpen);
+  const cd = game.lureCooldown;
+  els.lureCd.textContent = cd > 0 ? `${cd.toFixed(1)}s` : 'READY';
+  els.lureBtn.classList.toggle('cooling', cd > 0);
+  els.lureBtn.classList.toggle('ready', cd <= 0);
 }
 function updateActiveCam(id) {
   $$('.cam-sel').forEach(b => b.classList.toggle('active', b.dataset.cam === id));
   const map = {
     '1A': 'SHOW STAGE', '1B': 'DINING AREA', '1C': 'PIRATE COVE',
     '2A': 'WEST HALL', '2B': 'WEST HALL CORNER', '3': 'SUPPLY CLOSET',
-    '4A': 'EAST HALL', '4B': 'EAST HALL CORNER', '5': 'BACKSTAGE'
+    '4A': 'EAST HALL', '4B': 'EAST HALL CORNER', '5': 'BACKSTAGE',
+    '6': 'MUSIC BOX'
   };
   els.feedLabel.textContent = `CAM ${id} · ${map[id]}`;
 }
 
 /* ------------------------------------------------------------------ events */
+let auxRun = { active: false, hits: 0, need: 6, lit: -1, dur: 8.2 };
+function handleAux(active, result) {
+  if (active) { startAux(); return; }
+  if (!auxRun.active) return;
+  auxRun.active = false;
+  els.auxOverlay.classList.add('hidden');
+  document.body.classList.remove('aux-active');
+  els.windBtn.classList.remove('on');
+  if (result === 'success') {
+    world.unblackout();
+    game.auxSuccess = true;
+    showToast('AUX POWER ONLINE — 24% recovered.', 'good');
+    audio.setTension(.55);
+  }
+  updateCamTools();
+}
+function startAux() {
+  auxRun = { active: true, hits: 0, need: 6, lit: -1, dur: auxRun.dur };
+  clearTimeout(hintTimer);
+  document.body.classList.remove('cam-open');
+  els.camOverlay.classList.add('hidden');
+  els.camsBtn.classList.remove('active');
+  els.viewPrompt.classList.add('hidden');
+  els.windBtn.classList.remove('on');
+  document.body.classList.add('aux-active');
+  els.auxOverlay.classList.remove('hidden');
+  els.auxFill.style.width = '0%';
+  els.auxStatus.textContent = `0 / ${auxRun.need} REROUTED`;
+  els.auxClock.textContent = auxRun.dur.toFixed(1);
+  els.auxClock.classList.remove('crit');
+  els.auxBreakers.querySelectorAll('.aux-breaker').forEach(b => b.classList.remove('live', 'wrong'));
+  lightBreaker();
+  audio.setTension(.9);
+}
+function lightBreaker() {
+  const btns = Array.from(els.auxBreakers.querySelectorAll('.aux-breaker'));
+  btns.forEach(b => b.classList.remove('live'));
+  auxRun.lit = Math.floor(Math.random() * btns.length);
+  btns[auxRun.lit].classList.add('live');
+}
+function tapBreaker(i) {
+  if (!auxRun.active) return;
+  const btns = Array.from(els.auxBreakers.querySelectorAll('.aux-breaker'));
+  const b = btns[i];
+  if (i === auxRun.lit) {
+    auxRun.hits++;
+    audio.click();
+    els.auxFill.style.width = `${Math.min(100, (auxRun.hits / auxRun.need) * 100)}%`;
+    els.auxStatus.textContent = `${auxRun.hits} / ${auxRun.need} REROUTED`;
+    if (auxRun.hits >= auxRun.need) { game.resolveAux(true); return; }
+    lightBreaker();
+  } else {
+    game.auxT = Math.min(8.2, game.auxT + .55);
+    audio.staticBurst(.12);
+    b.classList.add('wrong');
+    setTimeout(() => b.classList.remove('wrong'), 260);
+    if (game.auxT >= 8.2) game.resolveAux(false);
+  }
+}
+function tickAux(now) {
+  if (!auxRun.active) return;
+  const left = Math.max(0, auxRun.dur - game.auxT);
+  els.auxClock.textContent = left.toFixed(1);
+  els.auxClock.classList.toggle('crit', left < 3);
+}
+els.auxBreakers.addEventListener('click', e => {
+  const b = e.target.closest('.aux-breaker');
+  if (b) tapBreaker(+b.dataset.i);
+});
+
 function handleDeath(by, reason) {
   if (state === 'dead' || state === 'won') return;
   state = 'dead';
@@ -380,6 +554,9 @@ function handleDeath(by, reason) {
   els.camOverlay.classList.add('hidden');
   els.camsBtn.classList.remove('active');
   els.viewPrompt.classList.add('hidden');
+  els.auxOverlay.classList.add('hidden');
+  document.body.classList.remove('aux-active', 'cam-open');
+  auxRun.active = false;
   els.hud.classList.remove('live');
   els.hud.classList.add('hidden');
   audio.scream();
@@ -393,8 +570,12 @@ function handleDeath(by, reason) {
     els.hud.classList.add('hidden');
     world.stopJumpscare();
     flash('#000', 300);
-    const names = { freddy: 'Freddy', bonnie: 'Bonnie', chica: 'Chica', foxy: 'Foxy' };
-    els.goSub.textContent = reason === 'blackout' ? 'The power ran out. Something came for you in the dark.' : `${names[by] || 'Something'} reached the office.`;
+    const names = { freddy: 'Freddy', bonnie: 'Bonnie', chica: 'Chica', foxy: 'Foxy', puppet: 'The Puppet' };
+    els.goSub.textContent = reason === 'blackout'
+      ? 'The power ran out. Something came for you in the dark.'
+      : reason === 'musicbox'
+        ? 'The music box stopped. The Puppet found you.'
+        : `${names[by] || 'Something'} reached the office.`;
     els.goNight.textContent = game.night;
     els.goPower.textContent = `${Math.round(game.power)}%`;
     els.goTime.textContent = `${game.displayHour()} AM`;
@@ -410,6 +591,9 @@ function handleWin(night) {
   els.camOverlay.classList.add('hidden');
   els.camsBtn.classList.remove('active');
   els.viewPrompt.classList.add('hidden');
+  els.auxOverlay.classList.add('hidden');
+  document.body.classList.remove('aux-active', 'cam-open');
+  auxRun.active = false;
   els.hud.classList.remove('live');
   world.lookEnabled = false;
   world.stopJumpscare();
@@ -419,7 +603,7 @@ function handleWin(night) {
   flash('#fff8e6', 750);
   winTimer = setTimeout(() => {
     els.hud.classList.add('hidden');
-    els.winSub.textContent = night >= 5 ? 'You survived the whole week. Nobody else has.' : `You survived Night ${night}.`;
+    els.winSub.textContent = night >= 7 ? 'Seven nights. The suits finally stopped moving.' : night >= 5 ? 'You survived the whole week. Nobody else has.' : `You survived Night ${night}.`;
     const stars = game.power > 55 ? 3 : game.power > 22 ? 2 : 1;
     els.winStars.textContent = '★'.repeat(stars) + '☆'.repeat(3 - stars);
     els.winStars.title = `${stars} star shift`;
@@ -428,12 +612,12 @@ function handleWin(night) {
     if (payTotal) payTotal.textContent = `$${total}`;
     const payBase = document.querySelector('.pay-row b');
     if (payBase) payBase.textContent = `$${total}`;
-    els.nextNightBtn.classList.toggle('hidden', night >= 5);
+    els.nextNightBtn.classList.toggle('hidden', night >= 7);
     els.nextNightBtn.textContent = `NIGHT ${night + 1}`;
     els.win.classList.remove('hidden');
-    game.unlocked = Math.max(game.unlocked, Math.min(5, night + 1));
+    game.unlocked = Math.max(game.unlocked, Math.min(7, night + 1));
     updateNightCards();
-    selectedNight = Math.min(5, night + 1);
+    selectedNight = Math.min(7, night + 1);
   }, 2100);
 }
 
@@ -445,6 +629,7 @@ function handleHour(idx, hour) {
 
 function handlePowerOut() {
   world.blackout();
+  document.body.classList.remove('cam-open');
   els.camOverlay.classList.add('hidden');
   els.camsBtn.classList.remove('active');
   world.lookEnabled = false;
@@ -518,7 +703,7 @@ els.retryBtn.addEventListener('click', () => {
 els.goMenuBtn.addEventListener('click', () => { audio.click(); startMenu(); });
 els.nextNightBtn.addEventListener('click', () => {
   audio.click();
-  beginNightFlow(Math.min(5, selectedNight));
+  beginNightFlow(Math.min(7, selectedNight));
 });
 els.winMenuBtn.addEventListener('click', () => { audio.click(); startMenu(); });
 
@@ -566,6 +751,14 @@ function updateHud(force = false) {
     });
     lastHud.usage = usage;
   }
+  const sig = Math.round(game.getSignalPct());
+  if (force || sig !== lastHud.signal) {
+    const on = Math.ceil(sig / 12.5);
+    els.signalBars.forEach((b, i) => {
+      b.className = i < on ? (sig < 20 ? 'crit' : sig < 45 ? 'low' : 'on') : '';
+    });
+    lastHud.signal = sig;
+  }
   const doors = `${game.doors.left ? 1 : 0}${game.doors.right ? 1 : 0}`;
   if (force || doors !== lastHud.doors) {
     document.querySelector('[data-action="leftDoor"]').classList.toggle('on', game.doors.left);
@@ -591,17 +784,60 @@ function updateHud(force = false) {
 function setFeedClock() {
   if (!game) return;
   const h = game.displayHour();
-  const total = Math.floor(game.nightT * 12.5);
-  const mm = String(total % 60).padStart(2, '0');
-  const ss = String(Math.floor((game.nightT * 60) % 60)).padStart(2, '0');
+  const total = Math.floor(game.nightT * 75);
+  const mm = String(Math.floor(total / 60) % 60).padStart(2, '0');
+  const ss = String(total % 60).padStart(2, '0');
   els.feedTime.textContent = `${h}:${mm}:${ss} AM`;
   els.camHeaderTime.textContent = `${h}:${mm} AM · NIGHT ${game.night}`;
   let warn = '';
   for (const k in game.ai) {
     const a = game.ai[k];
-    if (game.camMatches(k, a)) { warn = '● MOTION'; break; }
+    if (a.index > 0 && game.camMatches(k, a)) { warn = '● MOTION'; break; }
   }
+  if (game.foxy.running && (game.cam === '2A' || game.cam === '2B')) warn = '● FAST MOVEMENT';
+  if (game.camOffline) warn = '● NO SIGNAL';
   els.camWarn.textContent = warn;
+}
+
+function updateCamHud() {
+  if (!game.camOpen) return;
+  const sig = Math.round(game.getSignalPct());
+  const bars = els.feedSig.querySelectorAll('i');
+  const lit = Math.ceil(sig / 25);
+  bars.forEach((b, i) => {
+    b.className = i < lit ? (sig < 20 ? 'crit' : sig < 45 ? 'low' : 'on') : '';
+  });
+  els.feedSig.classList.toggle('critical', sig < 35);
+  els.camSignalVal.textContent = game.camOffline
+    ? 'SIGNAL LOST'
+    : game.camRebootT > 0 ? `REBOOT ${game.camRebootT.toFixed(1)}s`
+      : `SIGNAL ${sig}% · POWER ${Math.round(game.power)}%`;
+  els.camSignalVal.style.color = sig < 25 ? '#ff7a62' : sig < 50 ? '#e0b06a' : '#7f9c86';
+
+  const mb = Math.round(game.getMusicBoxPct());
+  els.mbPct.textContent = `${mb}%`;
+  els.mbBars.forEach((b, i) => {
+    b.className = i < Math.ceil(mb / 12.5) ? (mb < 20 ? 'crit' : mb < 45 ? 'low' : 'on') : '';
+  });
+
+  const cd = game.lureCooldown;
+  els.lureCd.textContent = cd > 0 ? `${cd.toFixed(1)}s` : 'READY';
+  els.lureBtn.classList.toggle('cooling', cd > 0);
+  els.lureBtn.classList.toggle('ready', cd <= 0);
+
+  $$('.cam-sel').forEach(b => {
+    const id = b.dataset.cam;
+    let hot = false;
+    if (id === '6') hot = mb < 25;
+    else if (id === '1C') hot = game.foxy.stage >= 3 || game.foxy.running;
+    else {
+      for (const k in game.ai) {
+        const a = game.ai[k];
+        if (a.index > 0 && game.camMatches(k, a)) hot = true;
+      }
+    }
+    b.classList.toggle('alert', hot);
+  });
 }
 
 function syncWorldCharacters() {
@@ -630,6 +866,7 @@ function tick(now) {
   last = now;
   if (dt > .1) dt = .1;
   if (dt <= 0) dt = .016;
+  tickAux(now);
 
   // keyboard look
   if (state === 'playing' && !game.camOpen) {
@@ -656,12 +893,14 @@ function tick(now) {
     }
     world.setPower(game.power / 100);
     if (game.camOpen) {
+      if (game.windHeld) game.windMusicBox(dt);
       feedAcc += dt;
       if (feedAcc > .075) {
         feedAcc = 0;
         feed.draw(game, .075);
         setFeedClock();
       }
+      updateCamHud();
     }
   } else if (state === 'dead' || state === 'won') {
     world.setPower(game.power / 100);

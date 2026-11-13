@@ -49,11 +49,11 @@ function scratches(ctx, w, h, n = 24, color = 'rgba(255,255,255,.08)') {
 /* ---------------------------------------------------------- walls */
 export function wallTexture() {
   const w = 512, h = 512, c = canvas(w, h), x = c.getContext('2d');
-  x.fillStyle = '#b3a687';
+  x.fillStyle = '#a79b80';
   x.fillRect(0, 0, w, h);
   // vertical wallpaper stripes
   for (let i = 0; i < w; i += 32) {
-    x.fillStyle = i % 64 === 0 ? 'rgba(120,104,76,.10)' : 'rgba(255,246,218,.05)';
+    x.fillStyle = i % 64 === 0 ? 'rgba(100,86,60,.13)' : 'rgba(255,246,218,.045)';
     x.fillRect(i, 0, 16, h);
   }
   // fine noise
@@ -80,7 +80,7 @@ export function wallTexture() {
 
 export function wainscotTexture() {
   const w = 512, h = 256, c = canvas(w, h), x = c.getContext('2d');
-  x.fillStyle = '#4a3a2b';
+  x.fillStyle = '#412f20';
   x.fillRect(0, 0, w, h);
   const g = x.createLinearGradient(0, 0, 0, h);
   g.addColorStop(0, 'rgba(255,220,170,.13)');
@@ -119,7 +119,7 @@ export function floorTexture() {
   const n = 4, s = w / n;
   for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) {
     const dark = (i + j) % 2 === 0;
-    x.fillStyle = dark ? '#2b2822' : '#c9bda2';
+    x.fillStyle = dark ? '#25221d' : '#b6a98d';
     x.fillRect(i * s, j * s, s, s);
     // tile edge bevel
     x.fillStyle = dark ? 'rgba(255,255,255,.035)' : 'rgba(255,255,255,.12)';
@@ -419,7 +419,7 @@ export function metalTexture() {
 
 export function deskTexture() {
   const w = 512, h = 256, c = canvas(w, h), x = c.getContext('2d');
-  x.fillStyle = '#4a3524'; x.fillRect(0, 0, w, h);
+  x.fillStyle = '#5a402a'; x.fillRect(0, 0, w, h);
   for (let i = 0; i < 60; i++) {
     x.strokeStyle = `rgba(${20 + rand() * 40},${14 + rand() * 28},${8 + rand() * 18},${.1 + rand() * .2})`;
     x.lineWidth = .5 + rand() * 2;
@@ -593,4 +593,214 @@ export function exitTexture() {
   x.fillStyle = '#ff4a32'; x.font = 'bold 34px Arial, sans-serif'; x.textAlign = 'center';
   x.fillText('EXIT', w / 2, 45);
   return finish(c, 1, 1);
+}
+
+/* ---------------------------------------------------------- PBR helpers */
+/* Derives a tangent-space normal map from a canvas texture's luminance.
+   Cheap, resolution-preserving and surprisingly convincing on plaster,
+   tile grout and suit fabric. */
+export function normalFrom(tex, strength = 1.0, repeat = null) {
+  const src = tex.image;
+  const w = src.width, h = src.height;
+  const read = canvas(w, h);
+  const rx = read.getContext('2d', { willReadFrequently: true });
+  rx.drawImage(src, 0, 0);
+  const data = rx.getImageData(0, 0, w, h).data;
+  const height = new Float32Array(w * h);
+  for (let i = 0, p = 0; i < data.length; i += 4, p++) {
+    height[p] = (data[i] * .299 + data[i + 1] * .587 + data[i + 2] * .114) / 255;
+  }
+  const out = canvas(w, h);
+  const ox = out.getContext('2d');
+  const img = ox.createImageData(w, h);
+  const at = (x, y) => height[((y + h) % h) * w + ((x + w) % w)];
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const dx = (at(x + 1, y) - at(x - 1, y)) * strength;
+      const dy = (at(x, y + 1) - at(x, y - 1)) * strength;
+      let nx = -dx, ny = -dy, nz = 1;
+      const len = Math.sqrt(nx * nx + ny * ny + nz * nz) || 1;
+      nx /= len; ny /= len; nz /= len;
+      const i = (y * w + x) * 4;
+      img.data[i] = (nx * .5 + .5) * 255;
+      img.data[i + 1] = (ny * .5 + .5) * 255;
+      img.data[i + 2] = (nz * .5 + .5) * 255;
+      img.data[i + 3] = 255;
+    }
+  }
+  ox.putImageData(img, 0, 0);
+  const t = new THREE.CanvasTexture(out);
+  t.colorSpace = THREE.NoColorSpace;
+  t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  t.repeat.copy(repeat || tex.repeat);
+  t.anisotropy = 4;
+  return t;
+}
+
+/* Emissive roughness map: bright pixels = smoother (wet/polished). */
+export function roughnessFrom(tex, repeat = null, base = 1) {
+  const src = tex.image;
+  const w = src.width, h = src.height;
+  const c = canvas(w, h), x = c.getContext('2d', { willReadFrequently: true });
+  x.drawImage(src, 0, 0);
+  const d = x.getImageData(0, 0, w, h);
+  for (let i = 0; i < d.data.length; i += 4) {
+    const l = (d.data[i] * .299 + d.data[i + 1] * .587 + d.data[i + 2] * .114) / 255;
+    const v = Math.round(255 * Math.min(1, base * (.55 + l * .55)));
+    d.data[i] = d.data[i + 1] = d.data[i + 2] = v;
+  }
+  x.putImageData(d, 0, 0);
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.NoColorSpace;
+  t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  t.repeat.copy(repeat || tex.repeat);
+  t.anisotropy = 2;
+  return t;
+}
+
+/* ---------------------------------------------------------- new surfaces */
+export function dropCeilingTexture() {
+  const w = 512, h = 512, c = canvas(w, h), x = c.getContext('2d');
+  x.fillStyle = '#8d8674'; x.fillRect(0, 0, w, h);
+  const cell = 128;
+  for (let i = 0; i < 4; i++) for (let j = 0; j < 4; j++) {
+    const px = i * cell, py = j * cell;
+    const g = x.createLinearGradient(px, py, px + cell, py + cell);
+    g.addColorStop(0, '#a79f8b'); g.addColorStop(.5, '#8b8371'); g.addColorStop(1, '#756e5e');
+    x.fillStyle = g; x.fillRect(px + 4, py + 4, cell - 8, cell - 8);
+    // stipple
+    for (let k = 0; k < 140; k++) {
+      x.fillStyle = `rgba(40,35,26,${.04 + rand() * .09})`;
+      x.fillRect(px + 6 + rand() * (cell - 12), py + 6 + rand() * (cell - 12), 1 + rand() * 2, 1 + rand() * 2);
+    }
+    // water stain on a few tiles
+    if (rand() > .72) {
+      const sx = px + 20 + rand() * 88, sy = py + 20 + rand() * 88;
+      const rg = x.createRadialGradient(sx, sy, 2, sx, sy, 16 + rand() * 34);
+      rg.addColorStop(0, 'rgba(96,70,36,.26)'); rg.addColorStop(1, 'rgba(96,70,36,0)');
+      x.fillStyle = rg; x.beginPath(); x.arc(sx, sy, 50, 0, 7); x.fill();
+    }
+  }
+  // T-bar grid
+  x.strokeStyle = '#4c4a42'; x.lineWidth = 10;
+  for (let i = 0; i <= 4; i++) {
+    x.beginPath(); x.moveTo(i * cell, 0); x.lineTo(i * cell, h); x.stroke();
+    x.beginPath(); x.moveTo(0, i * cell); x.lineTo(w, i * cell); x.stroke();
+  }
+  x.strokeStyle = 'rgba(255,255,255,.12)'; x.lineWidth = 2;
+  for (let i = 0; i <= 4; i++) {
+    x.beginPath(); x.moveTo(i * cell + 5, 0); x.lineTo(i * cell + 5, h); x.stroke();
+    x.beginPath(); x.moveTo(0, i * cell + 5); x.lineTo(w, i * cell + 5); x.stroke();
+  }
+  grime(x, w, h, 40, 'rgba(30,22,12,');
+  return finish(c, 3, 3);
+}
+
+export function curtainTexture(deep = '#3b0d11', mid = '#74201d') {
+  const w = 512, h = 512, c = canvas(w, h), x = c.getContext('2d');
+  x.fillStyle = deep; x.fillRect(0, 0, w, h);
+  for (let i = 0; i < 26; i++) {
+    const px = i * (w / 26);
+    const g = x.createLinearGradient(px, 0, px + w / 26, 0);
+    g.addColorStop(0, 'rgba(0,0,0,.58)');
+    g.addColorStop(.38, mid);
+    g.addColorStop(.55, 'rgba(255,180,150,.12)');
+    g.addColorStop(.75, mid);
+    g.addColorStop(1, 'rgba(0,0,0,.6)');
+    x.fillStyle = g; x.fillRect(px, 0, w / 26 + 1, h);
+  }
+  // velvet sheen + dust
+  x.fillStyle = 'rgba(255,190,140,.05)';
+  for (let i = 0; i < 90; i++) x.fillRect(rand() * w, rand() * h, 1 + rand() * 2, 1 + rand() * 7);
+  grime(x, w, h, 26, 'rgba(14,6,4,');
+  return finish(c, 3, 1.5);
+}
+
+export function hazardTexture() {
+  const w = 256, h = 64, c = canvas(w, h), x = c.getContext('2d');
+  x.fillStyle = '#171410'; x.fillRect(0, 0, w, h);
+  for (let i = -h; i < w + h; i += 40) {
+    x.fillStyle = '#b9902c';
+    x.beginPath();
+    x.moveTo(i, h); x.lineTo(i + 20, h); x.lineTo(i + 20 + h, 0); x.lineTo(i + h, 0);
+    x.closePath(); x.fill();
+  }
+  grime(x, w, h, 18, 'rgba(0,0,0,');
+  return finish(c, 1, 1);
+}
+
+export function glowTexture() {
+  const s = 128, c = canvas(s, s), x = c.getContext('2d');
+  const g = x.createRadialGradient(s / 2, s / 2, 0, s / 2, s / 2, s / 2);
+  g.addColorStop(0, 'rgba(255,255,255,1)');
+  g.addColorStop(.22, 'rgba(255,246,225,.8)');
+  g.addColorStop(.55, 'rgba(255,220,170,.22)');
+  g.addColorStop(1, 'rgba(255,200,140,0)');
+  x.fillStyle = g; x.fillRect(0, 0, s, s);
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}
+
+export function beamTexture() {
+  const w = 128, h = 256, c = canvas(w, h), x = c.getContext('2d');
+  const g = x.createLinearGradient(0, 0, 0, h);
+  g.addColorStop(0, 'rgba(255,220,160,0)');
+  g.addColorStop(.18, 'rgba(255,216,160,.55)');
+  g.addColorStop(.72, 'rgba(255,206,150,.18)');
+  g.addColorStop(1, 'rgba(255,200,140,0)');
+  x.fillStyle = g; x.fillRect(0, 0, w, h);
+  const hg = x.createLinearGradient(0, 0, w, 0);
+  hg.addColorStop(0, 'rgba(0,0,0,1)'); hg.addColorStop(.3, 'rgba(0,0,0,0)');
+  hg.addColorStop(.7, 'rgba(0,0,0,0)'); hg.addColorStop(1, 'rgba(0,0,0,1)');
+  x.globalCompositeOperation = 'destination-out';
+  x.fillStyle = hg; x.fillRect(0, 0, w, h);
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}
+
+export function marqueeTexture() {
+  const w = 1024, h = 256, c = canvas(w, h), x = c.getContext('2d');
+  x.fillStyle = '#140f0b'; x.fillRect(0, 0, w, h);
+  const g = x.createLinearGradient(0, 0, 0, h);
+  g.addColorStop(0, '#2a1c12'); g.addColorStop(1, '#0d0906');
+  x.fillStyle = g; x.fillRect(10, 10, w - 20, h - 20);
+  x.strokeStyle = '#c8a04a'; x.lineWidth = 5; x.strokeRect(18, 18, w - 36, h - 36);
+  x.textAlign = 'center';
+  x.fillStyle = '#f4dfa8';
+  x.font = 'bold 66px Georgia, serif';
+  x.fillText("FREDDY FAZBEAR'S", w / 2, 108);
+  x.fillStyle = '#e05a3d';
+  x.font = 'bold 64px Georgia, serif';
+  x.fillText('PIZZA', w / 2, 186);
+  x.fillStyle = 'rgba(220,200,160,.65)';
+  x.font = '18px Georgia, serif';
+  x.fillText('F A Z B E A R   E N T E R T A I N M E N T', w / 2, 224);
+  grime(x, w, h, 24, 'rgba(0,0,0,');
+  return finish(c, 1, 1);
+}
+
+export function ventGrilleTexture() {
+  const w = 256, h = 256, c = canvas(w, h), x = c.getContext('2d');
+  x.fillStyle = '#181613'; x.fillRect(0, 0, w, h);
+  for (let y = 12; y < h; y += 20) {
+    const g = x.createLinearGradient(0, y, 0, y + 12);
+    g.addColorStop(0, '#0a0908'); g.addColorStop(.6, '#22201b'); g.addColorStop(1, '#0d0c0a');
+    x.fillStyle = g; x.fillRect(16, y, w - 32, 12);
+    x.fillStyle = 'rgba(255,240,210,.08)'; x.fillRect(16, y, w - 32, 1);
+  }
+  x.strokeStyle = '#3a352c'; x.lineWidth = 14; x.strokeRect(8, 8, w - 16, h - 16);
+  x.strokeStyle = 'rgba(255,255,255,.08)'; x.lineWidth = 2; x.strokeRect(15, 15, w - 30, h - 30);
+  return finish(c, 1, 1);
+}
+
+export function cableTexture() {
+  const w = 64, h = 256, c = canvas(w, h), x = c.getContext('2d');
+  x.fillStyle = '#15120f'; x.fillRect(0, 0, w, h);
+  for (let y = 0; y < h; y += 8) {
+    x.fillStyle = 'rgba(255,255,255,.06)'; x.fillRect(0, y, w, 1);
+    x.fillStyle = 'rgba(0,0,0,.4)'; x.fillRect(0, y + 4, w, 2);
+  }
+  return finish(c, 1, 4);
 }

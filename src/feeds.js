@@ -10,7 +10,8 @@ const CAMS = {
   '3': { name: 'SUPPLY CLOSET' },
   '4A': { name: 'EAST HALL' },
   '4B': { name: 'EAST HALL CORNER' },
-  '5': { name: 'BACKSTAGE' }
+  '5': { name: 'BACKSTAGE' },
+  '6': { name: 'MUSIC BOX' }
 };
 
 export class FeedRenderer {
@@ -66,6 +67,7 @@ export class FeedRenderer {
     else if (id === '4A') this._roomHall(x, 1);
     else if (id === '4B') this._roomCorner(x, 1);
     else if (id === '5') this._roomBackstage(x);
+    else if (id === '6') this._roomMusicBox(x);
     // generic grime
     for (let i = 0; i < 70; i++) {
       const gx = Math.random() * W, gy = Math.random() * H, gr = 4 + Math.random() * 40;
@@ -386,6 +388,67 @@ export class FeedRenderer {
     }
   }
 
+  _roomMusicBox(x) {
+    this._wallBase(x, 0, H, '#4b4356');
+    // black & white tiled floor in perspective
+    this._perspFloor(x, W / 2, 210, 300, '#8f8878', '#1b1916');
+    // deep purple wash
+    const wash = x.createRadialGradient(W / 2, 250, 20, W / 2, 250, 390);
+    wash.addColorStop(0, 'rgba(126,70,180,.24)'); wash.addColorStop(1, 'rgba(30,10,46,.02)');
+    x.fillStyle = wash; x.fillRect(0, 0, W, H);
+    // shelving on both walls
+    for (const side of [-1, 1]) {
+      const bx = side < 0 ? 24 : W - 110;
+      x.fillStyle = '#241c18'; x.fillRect(bx, 80, 86, 260);
+      for (let i = 0; i < 4; i++) {
+        x.fillStyle = '#3a2e24'; x.fillRect(bx + 5, 96 + i * 62, 76, 7);
+        x.fillStyle = 'rgba(255,220,180,.1)'; x.fillRect(bx + 5, 96 + i * 62, 76, 2);
+        for (let j = 0; j < 3; j++) {
+          x.fillStyle = ['#4e3d2c', '#5c4a35', '#3b3026'][(i + j) % 3];
+          x.fillRect(bx + 12 + j * 23, 72 + i * 62, 15, 24);
+        }
+      }
+    }
+    // centre table
+    x.fillStyle = 'rgba(0,0,0,.4)';
+    x.beginPath(); x.ellipse(W / 2 + 10, 392, 168, 26, 0, 0, 7); x.fill();
+    x.fillStyle = '#3d2a1b'; x.fillRect(W / 2 - 150, 332, 300, 18);
+    x.fillStyle = '#2a1b11'; x.fillRect(W / 2 - 132, 350, 16, 62); x.fillRect(W / 2 + 116, 350, 16, 62);
+    // ornate music box
+    const bx = W / 2, by = 330;
+    x.fillStyle = '#5b3d22'; x.fillRect(bx - 72, by - 54, 144, 54);
+    x.fillStyle = '#7a5230'; x.fillRect(bx - 72, by - 54, 144, 10);
+    x.fillStyle = '#3a2614'; x.fillRect(bx - 66, by - 46, 132, 40);
+    // gold trim + crank
+    x.strokeStyle = '#c39a52'; x.lineWidth = 3; x.strokeRect(bx - 68, by - 50, 136, 46);
+    x.strokeStyle = '#d8b066'; x.lineWidth = 2;
+    x.beginPath(); x.arc(bx + 82, by - 18, 9, 0, 7); x.stroke();
+    x.beginPath(); x.moveTo(bx + 82, by - 9); x.lineTo(bx + 92, by - 2); x.stroke();
+    // tiny ballerina on lid
+    x.fillStyle = '#e3d3b6';
+    x.beginPath(); x.arc(bx - 6, by - 70, 6, 0, 7); x.fill();
+    x.fillStyle = '#c9b8e8';
+    x.beginPath(); x.moveTo(bx - 6, by - 64); x.lineTo(bx - 20, by - 48); x.lineTo(bx + 8, by - 48); x.fill();
+    x.strokeStyle = '#e3d3b6'; x.lineWidth = 2;
+    x.beginPath(); x.moveTo(bx - 6, by - 66); x.lineTo(bx - 22, by - 82); x.stroke();
+    // purple shaft of light
+    const beam = x.createLinearGradient(0, 30, 0, by - 60);
+    beam.addColorStop(0, 'rgba(190,140,255,.2)'); beam.addColorStop(1, 'rgba(190,140,255,0)');
+    x.fillStyle = beam;
+    x.beginPath(); x.moveTo(310, 30); x.lineTo(458, 30); x.lineTo(410, by - 60); x.lineTo(358, by - 60); x.fill();
+    // hanging bulb
+    x.strokeStyle = '#151016'; x.lineWidth = 2;
+    x.beginPath(); x.moveTo(W / 2, 0); x.lineTo(W / 2, 32); x.stroke();
+    x.fillStyle = 'rgba(224,192,255,.9)'; x.beginPath(); x.arc(W / 2, 42, 8, 0, 7); x.fill();
+    // puppet strings from ceiling
+    x.strokeStyle = 'rgba(220,210,230,.18)'; x.lineWidth = 1;
+    for (const sx of [-38, -16, 18, 40]) {
+      x.beginPath(); x.moveTo(W / 2 + sx * 2.2, 0); x.lineTo(W / 2 + sx, by - 66); x.stroke();
+    }
+    // dark edge framing
+    x.fillStyle = 'rgba(0,0,0,.5)'; x.fillRect(0, 0, 34, H); x.fillRect(W - 34, 0, 34, H);
+  }
+
   _star(x, r) {
     x.beginPath();
     for (let i = 0; i < 10; i++) {
@@ -458,6 +521,54 @@ export class FeedRenderer {
       x.beginPath(); x.arc(500, 250, 2.5, 0, 7); x.fill();
       x.beginPath(); x.arc(516, 250, 2.5, 0, 7); x.fill();
     }
+    if (cam === '6') {
+      const mb = (game.musicBox ?? 100) / 100;
+      if (mb < .62) {
+        const rise = Math.min(1, (1 - mb) * 1.35);
+        this._puppet(x, rise, .55 + (1 - mb) * .45);
+      }
+      // winding sparkle while the handle turns
+      if (game.windHeld) {
+        for (let i = 0; i < 5; i++) {
+          const a = this.t * 6 + i * 1.25;
+          x.fillStyle = `rgba(220,180,255,${.2 + Math.random() * .4})`;
+          x.fillRect(W / 2 + 84 + Math.cos(a) * 22, 300 + Math.sin(a) * 16, 2, 2);
+        }
+      }
+    }
+  }
+
+  _puppet(x, rise, alpha) {
+    const cx = W / 2, base = 330;
+    const headY = base - 58 - rise * 92;
+    // long strings
+    x.strokeStyle = `rgba(230,225,240,${.24 * alpha})`; x.lineWidth = 1;
+    for (const sx of [-54, -20, 22, 56]) {
+      x.beginPath(); x.moveTo(cx + sx * 2.4, 0); x.lineTo(cx + sx, headY - 30); x.stroke();
+    }
+    // body
+    x.fillStyle = `rgba(18,14,24,${.94 * alpha})`;
+    x.beginPath();
+    x.moveTo(cx - 27, headY + 16); x.lineTo(cx + 27, headY + 16);
+    x.lineTo(cx + 45, headY + 120); x.lineTo(cx - 45, headY + 120); x.fill();
+    // arms
+    x.strokeStyle = `rgba(22,17,28,${.95 * alpha})`; x.lineWidth = 9; x.lineCap = 'round';
+    x.beginPath(); x.moveTo(cx - 24, headY + 30); x.lineTo(cx - 62, headY + 74); x.lineTo(cx - 50, headY + 128); x.stroke();
+    x.beginPath(); x.moveTo(cx + 24, headY + 30); x.lineTo(cx + 62, headY + 74); x.lineTo(cx + 50, headY + 128); x.stroke();
+    // white mask face
+    x.fillStyle = `rgba(232,228,238,${alpha})`;
+    x.beginPath(); x.ellipse(cx, headY, 28, 34, 0, 0, 7); x.fill();
+    x.fillStyle = `rgba(180,172,192,${alpha})`;
+    x.beginPath(); x.ellipse(cx, headY + 8, 19, 22, 0, 0, 7); x.fill();
+    // hollow eyes + tear tracks
+    x.fillStyle = `rgba(8,5,12,${alpha})`;
+    x.beginPath(); x.ellipse(cx - 10, headY - 5, 6, 8, .1, 0, 7); x.fill();
+    x.beginPath(); x.ellipse(cx + 10, headY - 5, 6, 8, -.1, 0, 7); x.fill();
+    x.fillStyle = `rgba(126,70,160,${.55 * alpha})`;
+    x.fillRect(cx - 12, headY - 2, 4, 16); x.fillRect(cx + 8, headY - 2, 4, 16);
+    x.fillStyle = `rgba(8,5,12,${alpha})`;
+    x.beginPath(); x.ellipse(cx, headY + 14, 7, 4, 0, 0, 7); x.fill();
+    x.lineCap = 'butt';
   }
 
   _coveFoxy(x, stage) {
@@ -607,10 +718,26 @@ export class FeedRenderer {
   /* ------------------------------------------------------------ fx overlay */
   _overlay(x, game) {
     const t = this.t;
+    const sig = game ? game.camSignal : 100;
     // noise specks
     x.globalAlpha = .10 + Math.random() * .03;
     x.drawImage(this.noise, Math.random() * 60, Math.random() * 60, 768, 432);
     x.globalAlpha = 1;
+    // degraded signal
+    if (sig < 62) {
+      const bad = (62 - sig) / 62;
+      x.globalAlpha = bad * .5;
+      for (let i = 0; i < 14 * bad; i++) {
+        x.drawImage(this.noise, Math.random() * 60, Math.random() * 60, 768, 432);
+      }
+      x.globalAlpha = 1;
+      x.fillStyle = `rgba(255,255,255,${bad * .05})`;
+      x.fillRect(0, Math.random() * H, W, 2 + Math.random() * 14);
+      if (sig < 20 && Math.random() < .3) {
+        x.fillStyle = 'rgba(0,0,0,.55)';
+        x.fillRect(0, Math.random() * H, W, 8 + Math.random() * 28);
+      }
+    }
     // static bands
     if (Math.random() < .15) {
       const by = Math.random() * H, bh = 2 + Math.random() * 10;
@@ -637,8 +764,9 @@ export class FeedRenderer {
     x.textAlign = 'left';
     // timestamp bottom
     const hour = game ? game.displayHour() : '12';
-    const mm = String(Math.floor((game ? game.nightT : 0) * 7.2) % 60).padStart(2, '0');
-    const ss = String(Math.floor((game ? game.nightT : 0) * 13.7) % 60).padStart(2, '0');
+    const totalT = Math.floor((game ? game.nightT : 0) * 75);
+    const mm = String(Math.floor(totalT / 60) % 60).padStart(2, '0');
+    const ss = String(totalT % 60).padStart(2, '0');
     x.fillStyle = 'rgba(240,230,205,.55)';
     x.font = '10px "Courier New", monospace';
     x.fillText(`NIGHT ${game ? game.night : 1}  ${hour}:${mm}:${ss} AM`, 20, H - 18);

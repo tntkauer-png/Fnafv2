@@ -57,6 +57,7 @@
         <div class="power-head"><span>POWER LEFT</span><span id="power-pct">100%</span></div>
         <div class="power-bars"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
         <div class="usage"><span>USAGE</span><div class="usage-bars" id="usage-bars"><i></i><i></i><i></i><i></i></div></div>
+        <div class="usage signal-row"><span>SIGNAL</span><div class="usage-bars" id="signal-bars"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div></div>
       </button>
 
       <button id="cams-btn" class="cam-btn" aria-label="Open camera tablet">
@@ -94,7 +95,7 @@
           <div class="feed-label" id="feed-label">CAM 1A &middot; SHOW STAGE</div>
           <div class="feed-rec"><span class="rec-dot"></span> REC</div>
           <div class="feed-time" id="feed-time">12:00:00 AM</div>
-          <div class="feed-sig"><span>SIGNAL</span><i></i><i></i><i></i><i></i></div>
+          <div class="feed-sig" id="feed-sig"><span>SIGNAL</span><i></i><i></i><i></i><i></i></div>
         </div>
         <div class="cam-map-panel">
           <div class="map-title">PIZZERIA &mdash; FLOOR 1</div>
@@ -138,13 +139,49 @@
             <button class="cam-sel" data-cam="4A"><b>4A</b><span>East Hall</span></button>
             <button class="cam-sel" data-cam="4B"><b>4B</b><span>East Corner</span></button>
             <button class="cam-sel" data-cam="5"><b>5</b><span>Backstage</span></button>
+            <button class="cam-sel music-cam" data-cam="6"><b>6</b><span>Music Box</span></button>
+          </div>
+
+          <div id="musicbox-panel" class="musicbox-panel hidden">
+            <div class="mb-head"><span>MUSIC BOX</span><b id="mb-pct">100%</b></div>
+            <div class="mb-bars" id="mb-bars"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+            <button id="wind-btn" class="wind-btn" aria-label="Hold to wind the music box">
+              <span>HOLD TO WIND</span><em>keeps the Puppet asleep</em>
+            </button>
+          </div>
+
+          <div class="cam-tools">
+            <button id="lure-btn" class="cam-tool"><b>◎ LURE</b><span id="lure-cd">READY</span></button>
+            <button id="reboot-btn" class="cam-tool"><b>↻ REBOOT</b><span>signal</span></button>
           </div>
         </div>
       </div>
       <div class="cam-footer">
-        <span>DRAG TO LOOK &middot; TAP A CAMERA</span>
+        <span>TAP A CAMERA &middot; LURE DISTRACTS</span>
         <span id="cam-warn"></span>
+        <span id="cam-signal-val">SIGNAL 100%</span>
       </div>
+    </div>
+  </div>
+
+  <!-- Emergency aux power mini-game -->
+  <div id="aux-overlay" class="overlay aux hidden" aria-label="Emergency aux power">
+    <div class="aux-panel">
+      <div class="aux-kicker">MAIN BREAKER TRIPPED</div>
+      <h2 class="aux-title">AUX POWER</h2>
+      <p class="aux-copy">Reroute the breakers before the backup fails. Hit the live breaker six times.</p>
+      <div class="aux-breakers" id="aux-breakers">
+        <button class="aux-breaker" data-i="0"><i></i><span>1</span></button>
+        <button class="aux-breaker" data-i="1"><i></i><span>2</span></button>
+        <button class="aux-breaker" data-i="2"><i></i><span>3</span></button>
+        <button class="aux-breaker" data-i="3"><i></i><span>4</span></button>
+        <button class="aux-breaker" data-i="4"><i></i><span>5</span></button>
+        <button class="aux-breaker" data-i="5"><i></i><span>6</span></button>
+        <button class="aux-breaker" data-i="6"><i></i><span>7</span></button>
+        <button class="aux-breaker" data-i="7"><i></i><span>8</span></button>
+      </div>
+      <div class="aux-bar"><i id="aux-fill"></i></div>
+      <div class="aux-status"><span id="aux-status">0 / 6 REROUTED</span><b id="aux-clock">8.0</b></div>
     </div>
   </div>
 
@@ -172,14 +209,17 @@
         <button class="night-card locked" data-night="3"><span class="n-num">03</span><span class="n-name">Night 3</span><span class="n-sub">Locked</span></button>
         <button class="night-card locked" data-night="4"><span class="n-num">04</span><span class="n-name">Night 4</span><span class="n-sub">Locked</span></button>
         <button class="night-card locked" data-night="5"><span class="n-num">05</span><span class="n-name">Night 5</span><span class="n-sub">Locked</span></button>
+        <button class="night-card locked" data-night="6"><span class="n-num">06</span><span class="n-name">Night 6</span><span class="n-sub">Locked</span></button>
+        <button class="night-card locked" data-night="7"><span class="n-num">07</span><span class="n-name">Night 7</span><span class="n-sub">Locked</span></button>
       </div>
 
       <button id="start-night" class="big-btn">START SHIFT</button>
       <div class="menu-tips">
         <div><b>LOOK</b> drag anywhere</div>
         <div><b>DOORS</b> hold them shut</div>
-        <div><b>LIGHTS</b> check the halls</div>
-        <div><b>WATCH</b> power &amp; cameras</div>
+        <div><b>CAM 6</b> wind the music box</div>
+        <div><b>LURE</b> bait them on camera</div>
+        <div><b>WATCH</b> power &amp; signal</div>
       </div>
       <div class="menu-foot">FAN-MADE TRIBUTE &middot; NOT AFFILIATED WITH SCOTT CAWTHON / STEEL WOOL &middot; SOUND ON</div>
     </div>
