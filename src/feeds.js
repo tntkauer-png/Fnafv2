@@ -499,108 +499,242 @@ export class FeedRenderer {
     }
   }
 
-  _char(x, type, sx, sy, s, variant, close = false) {
+  _char(x, type, sx, sy, s, variant = 0, close = false) {
     const pal = {
-      freddy: ['#4b301c', '#2a190d', '#9b7047', '#171310'],
-      bonnie: ['#3c3060', '#241c3c', '#7d6ba0', '#8c2b28'],
-      chica: ['#b08f32', '#7c621f', '#d3a53c', '#8c2b28'],
-      foxy: ['#772b1d', '#4a1a12', '#a85f3e', '#171310']
+      freddy: ['#4b301c', '#7a5330', '#2a190d', '#9b7047', '#8f2b2a', '#e6efff'],
+      bonnie: ['#3c3060', '#61508c', '#241c3c', '#7d6ba0', '#8c2b28', '#e4d6ff'],
+      chica: ['#b08f32', '#d8b64c', '#7c621f', '#d3a53c', '#b5473a', '#d8c6ff'],
+      foxy: ['#772b1d', '#a85f3e', '#4a1a12', '#b26743', '#171310', '#ffc95c']
     }[type];
     if (!pal) return;
+    const [body, light, dark, muzzle, accent, eyeCol] = pal;
+    const bob = Math.sin(this.t * 1.35 + sx * .031 + sy * .017) * (close ? 1.4 : 3.2);
     x.save();
-    x.translate(sx, sy);
+    x.translate(sx, sy + bob);
     x.scale(s, s);
-    // ground shadow
-    x.fillStyle = 'rgba(0,0,0,.5)';
-    x.beginPath(); x.ellipse(6, 4, 44, 10, 0, 0, 7); x.fill();
-    // rim glow behind
-    const glow = x.createRadialGradient(0, -110, 10, 0, -110, 130);
-    glow.addColorStop(0, close ? 'rgba(255,150,90,.1)' : 'rgba(255,190,120,.07)');
-    glow.addColorStop(1, 'rgba(0,0,0,0)');
-    x.fillStyle = glow; x.fillRect(-140, -260, 280, 280);
 
-    const body = pal[0], dark = pal[1], muzzle = pal[2], accent = pal[3];
-    // legs
+    // ground shadow
+    x.fillStyle = 'rgba(0,0,0,.55)';
+    x.beginPath(); x.ellipse(4, 2, 46, 10, 0, 0, 7); x.fill();
+    // rim haze behind the silhouette
+    const glow = x.createRadialGradient(0, -120, 8, 0, -120, 150);
+    glow.addColorStop(0, close ? 'rgba(255,140,80,.14)' : 'rgba(255,190,120,.09)');
+    glow.addColorStop(1, 'rgba(0,0,0,0)');
+    x.fillStyle = glow; x.fillRect(-150, -270, 300, 290);
+
+    // ---- legs
     x.fillStyle = dark;
-    x.beginPath(); x.ellipse(-14, -28, 11, 32, 0, 0, 7); x.fill();
-    x.beginPath(); x.ellipse(14, -28, 11, 32, 0, 0, 7); x.fill();
-    x.fillStyle = body;
-    x.beginPath(); x.ellipse(-15, -6, 15, 8, 0, 0, 7); x.fill();
-    x.beginPath(); x.ellipse(15, -6, 15, 8, 0, 0, 7); x.fill();
-    // torso
-    x.fillStyle = body;
-    x.beginPath(); x.ellipse(0, -92, 38, 52, 0, 0, 7); x.fill();
-    // belly
-    x.fillStyle = muzzle; x.globalAlpha = .55;
-    x.beginPath(); x.ellipse(0, -82, 24, 34, 0, 0, 7); x.fill();
-    x.globalAlpha = 1;
-    // arms
-    x.fillStyle = dark;
-    x.save(); x.rotate(.12); x.beginPath(); x.ellipse(-40, -100, 12, 44, 0, 0, 7); x.fill(); x.restore();
-    x.save(); x.rotate(-.12); x.beginPath(); x.ellipse(40, -100, 12, 44, 0, 0, 7); x.fill(); x.restore();
-    if (type === 'foxy') {
-      x.strokeStyle = '#8b877c'; x.lineWidth = 5;
-      x.beginPath(); x.arc(48, -55, 10, .4, 4.3); x.stroke();
+    x.beginPath(); x.roundRect(-25, -62, 19, 52, 8); x.fill();
+    x.beginPath(); x.roundRect(6, -62, 19, 52, 8); x.fill();
+    x.fillStyle = '#1c1a16';
+    for (const lx of [-22, 9]) {
+      x.beginPath(); x.ellipse(lx + 6, -58, 7, 6, 0, 0, 7); x.fill();
+      x.beginPath(); x.ellipse(lx + 6, -34, 6, 5, 0, 0, 7); x.fill();
     }
-    // bowtie
+    x.fillStyle = body;
+    x.beginPath(); x.ellipse(-16, -4, 17, 9, 0, 0, 7); x.fill();
+    x.beginPath(); x.ellipse(18, -4, 17, 9, 0, 0, 7); x.fill();
+    x.fillStyle = 'rgba(0,0,0,.25)';
+    x.beginPath(); x.ellipse(-16, -1, 16, 5, 0, 0, 7); x.fill();
+    x.beginPath(); x.ellipse(18, -1, 16, 5, 0, 0, 7); x.fill();
+
+    // ---- arms
+    for (const side of [-1, 1]) {
+      x.save();
+      x.translate(side * 39, -116);
+      x.rotate(side * (.1 + Math.sin(this.t * .9 + sx * .02) * .018));
+      const ag = x.createLinearGradient(-12, 0, 12, 0);
+      ag.addColorStop(0, light); ag.addColorStop(.55, body); ag.addColorStop(1, dark);
+      x.fillStyle = ag;
+      x.beginPath(); x.roundRect(-11, 0, 22, 55, 10); x.fill();
+      x.fillStyle = '#22201b';
+      x.beginPath(); x.arc(0, 54, 8, 0, 7); x.fill();
+      x.fillStyle = body;
+      x.beginPath(); x.roundRect(-9, 56, 18, 34, 8); x.fill();
+      if (type === 'foxy' && side > 0) {
+        x.strokeStyle = '#9b988c'; x.lineWidth = 4;
+        x.beginPath(); x.arc(0, 96, 11, .3, 4.5); x.stroke();
+      } else {
+        x.fillStyle = dark;
+        x.beginPath(); x.ellipse(0, 96, 10, 9, 0, 0, 7); x.fill();
+        // fingers
+        x.fillStyle = body;
+        for (let f = 0; f < 3; f++) {
+          x.beginPath(); x.roundRect(-8 + f * 6, 98, 5, 13, 2.5); x.fill();
+        }
+      }
+      x.restore();
+    }
+
+    // ---- torso
+    const tg = x.createLinearGradient(-42, -140, 42, -62);
+    tg.addColorStop(0, light);
+    tg.addColorStop(.4, body);
+    tg.addColorStop(1, dark);
+    x.fillStyle = tg;
+    x.beginPath();
+    x.moveTo(-37, -128);
+    x.bezierCurveTo(-46, -103, -38, -75, -25, -60);
+    x.lineTo(25, -60);
+    x.bezierCurveTo(38, -75, 46, -103, 37, -128);
+    x.bezierCurveTo(26, -142, -26, -142, -37, -128);
+    x.closePath();
+    x.fill();
+    // shoulder caps
+    x.fillStyle = dark;
+    x.beginPath(); x.ellipse(-38, -125, 12, 14, -.2, 0, 7); x.fill();
+    x.beginPath(); x.ellipse(38, -125, 12, 14, .2, 0, 7); x.fill();
+    // belly plate
+    const bg = x.createLinearGradient(0, -125, 0, -66);
+    bg.addColorStop(0, light); bg.addColorStop(.5, muzzle); bg.addColorStop(1, dark);
+    x.fillStyle = bg;
+    x.beginPath(); x.ellipse(0, -93, 24, 33, 0, 0, 7); x.fill();
+    x.strokeStyle = 'rgba(255,240,210,.16)'; x.lineWidth = 1.5;
+    x.beginPath(); x.ellipse(0, -93, 24, 33, 0, 0, 7); x.stroke();
+    // torso seam
+    x.strokeStyle = 'rgba(0,0,0,.35)'; x.lineWidth = 1.5;
+    x.beginPath(); x.moveTo(-27, -118); x.quadraticCurveTo(0, -108, 27, -118); x.stroke();
+    // bow tie
     if (type !== 'foxy') {
       x.fillStyle = accent;
-      x.beginPath(); x.moveTo(-10, -134); x.lineTo(-2, -129); x.lineTo(-10, -124); x.fill();
-      x.beginPath(); x.moveTo(10, -134); x.lineTo(2, -129); x.lineTo(10, -124); x.fill();
+      for (const side of [-1, 1]) {
+        x.beginPath();
+        x.moveTo(side * 2, -130); x.lineTo(side * 17, -137); x.lineTo(side * 17, -123); x.closePath(); x.fill();
+      }
+      x.beginPath(); x.arc(0, -130, 4, 0, 7); x.fill();
     }
-    // head
-    const hy = -165;
-    x.fillStyle = body;
-    if (type === 'bonnie') {
-      x.beginPath(); x.ellipse(-14, hy - 34, 8, 26, .12, 0, 7); x.fill();
-      x.beginPath(); x.ellipse(14, hy - 34, 8, 26, -.12, 0, 7); x.fill();
-    } else if (type === 'freddy') {
-      x.beginPath(); x.arc(-30, hy - 28, 12, 0, 7); x.fill();
-      x.beginPath(); x.arc(30, hy - 28, 12, 0, 7); x.fill();
+    // buttons
+    x.fillStyle = 'rgba(20,16,12,.7)';
+    x.beginPath(); x.arc(0, -112, 2.4, 0, 7); x.fill();
+    x.beginPath(); x.arc(0, -103, 2.4, 0, 7); x.fill();
+
+    // ---- head (ears/hat behind skull)
+    const hy = -172;
+    if (type === 'freddy') {
+      x.fillStyle = body;
+      for (const side of [-1, 1]) {
+        x.beginPath(); x.arc(side * 28, hy - 20, 12, 0, 7); x.fill();
+        x.fillStyle = dark;
+        x.beginPath(); x.arc(side * 28, hy - 20, 6, 0, 7); x.fill();
+        x.fillStyle = body;
+      }
+      x.fillStyle = '#111010';
+      x.fillRect(-17, hy - 47, 34, 19);
+      x.beginPath(); x.ellipse(0, hy - 28, 27, 5.5, 0, 0, 7); x.fill();
+      x.fillStyle = '#6e1f18';
+      x.fillRect(-16, hy - 35, 32, 4);
+    } else if (type === 'bonnie') {
+      x.fillStyle = body;
+      for (const side of [-1, 1]) {
+        x.save(); x.translate(side * 15, hy - 35); x.rotate(side * .12);
+        x.beginPath(); x.ellipse(0, -12, 8, 30, 0, 0, 7); x.fill();
+        x.fillStyle = muzzle;
+        x.beginPath(); x.ellipse(0, -10, 3.5, 20, 0, 0, 7); x.fill();
+        x.restore();
+        x.fillStyle = body;
+      }
     } else if (type === 'chica') {
-      x.beginPath(); x.moveTo(-14, hy - 26); x.lineTo(-2, hy - 48); x.lineTo(6, hy - 24); x.fill();
+      x.fillStyle = body;
+      x.beginPath(); x.moveTo(-10, hy - 23); x.quadraticCurveTo(-4, hy - 55, 6, hy - 30); x.fill();
+      x.beginPath(); x.moveTo(10, hy - 23); x.quadraticCurveTo(16, hy - 48, 22, hy - 25); x.fill();
     } else {
-      x.beginPath(); x.moveTo(-26, hy - 20); x.lineTo(-36, hy - 48); x.lineTo(-12, hy - 30); x.fill();
-      x.beginPath(); x.moveTo(26, hy - 20); x.lineTo(36, hy - 48); x.lineTo(12, hy - 30); x.fill();
+      x.fillStyle = body;
+      for (const side of [-1, 1]) {
+        x.beginPath(); x.moveTo(side * 18, hy - 12); x.lineTo(side * 34, hy - 46); x.lineTo(side * 36, hy - 12); x.closePath(); x.fill();
+        x.fillStyle = dark;
+        x.beginPath(); x.moveTo(side * 24, hy - 17); x.lineTo(side * 32, hy - 39); x.lineTo(side * 32, hy - 17); x.closePath(); x.fill();
+        x.fillStyle = body;
+      }
     }
-    x.beginPath(); x.ellipse(0, hy, 32, 30, 0, 0, 7); x.fill();
+
+    // skull
+    const hg = x.createRadialGradient(-10, hy - 8, 4, 0, hy, 42);
+    hg.addColorStop(0, light); hg.addColorStop(.52, body); hg.addColorStop(1, dark);
+    x.fillStyle = hg;
+    x.beginPath(); x.ellipse(0, hy, 33, 31, 0, 0, 7); x.fill();
+    // side shading
+    const shade = x.createLinearGradient(14, hy - 30, 34, hy + 20);
+    shade.addColorStop(0, 'rgba(0,0,0,0)'); shade.addColorStop(1, 'rgba(0,0,0,.45)');
+    x.fillStyle = shade;
+    x.beginPath(); x.ellipse(0, hy, 33, 31, 0, 0, 7); x.fill();
+
     // muzzle / beak
-    x.fillStyle = type === 'chica' ? '#d98c2c' : muzzle;
     if (type === 'chica') {
-      x.beginPath(); x.moveTo(-15, hy + 8); x.lineTo(15, hy + 8); x.lineTo(0, hy + 26); x.fill();
+      const bkg = x.createLinearGradient(0, hy + 4, 0, hy + 28);
+      bkg.addColorStop(0, '#f0a23a'); bkg.addColorStop(1, '#b86a18');
+      x.fillStyle = bkg;
+      x.beginPath(); x.moveTo(-16, hy + 7); x.lineTo(16, hy + 7); x.lineTo(0, hy + 29); x.closePath(); x.fill();
+      x.strokeStyle = 'rgba(90,50,10,.7)'; x.lineWidth = 1.5; x.stroke();
     } else {
-      x.beginPath(); x.ellipse(0, hy + 14, 20, 13, 0, 0, 7); x.fill();
-      if (type === 'foxy') { x.beginPath(); x.ellipse(0, hy + 16, 16, 13, 0, 0, 7); x.fill(); }
-      x.fillStyle = '#241a12';
-      x.beginPath(); x.ellipse(0, hy + 6, 5, 3.6, 0, 0, 7); x.fill();
+      const mg = x.createLinearGradient(0, hy - 2, 0, hy + 24);
+      mg.addColorStop(0, muzzle); mg.addColorStop(1, dark);
+      x.fillStyle = mg;
+      x.beginPath(); x.ellipse(0, hy + 13, 21, 13, 0, 0, 7); x.fill();
+      if (type === 'foxy') {
+        x.beginPath(); x.ellipse(0, hy + 15, 16, 14, 0, 0, 7); x.fill();
+      }
+      // nose
+      x.fillStyle = '#1c1410';
+      x.beginPath(); x.ellipse(0, hy + 4, 5.5, 4, 0, 0, 7); x.fill();
     }
-    // eyes — glowing pinpricks
-    x.fillStyle = '#e9e2ce';
-    x.beginPath(); x.arc(-11, hy - 4, 6.5, 0, 7); x.fill();
-    x.beginPath(); x.arc(11, hy - 4, 6.5, 0, 7); x.fill();
-    const eyeCol = type === 'chica' ? '#c7a6ff' : type === 'foxy' ? '#ffc95c' : '#e9f0ff';
-    x.fillStyle = eyeCol;
-    x.shadowColor = eyeCol; x.shadowBlur = 9;
-    x.beginPath(); x.arc(-11, hy - 4, 2.6, 0, 7); x.fill();
-    x.beginPath(); x.arc(11, hy - 4, 2.6, 0, 7); x.fill();
-    x.shadowBlur = 0;
+
+    // mouth / jaw
+    const jawOpen = close ? 8 : 2 + Math.sin(this.t * 1.5 + sx) * 1.2;
+    x.fillStyle = '#0b0605';
+    x.beginPath(); x.ellipse(0, hy + 18 + jawOpen * .3, 15, 5 + jawOpen * .35, 0, 0, 7); x.fill();
     // teeth
     x.fillStyle = '#ddd3b9';
-    for (let i = -2; i <= 2; i++) x.fillRect(i * 5 - 1.5, hy + 18, 3, 4);
-    // hat
-    if (type === 'freddy') {
-      x.fillStyle = '#111010';
-      x.fillRect(-16, hy - 50, 32, 20);
-      x.beginPath(); x.ellipse(0, hy - 30, 26, 5, 0, 0, 7); x.fill();
+    for (let i = -2; i <= 2; i++) {
+      x.fillRect(i * 5 - 1.4, hy + 13 + jawOpen * .2, 3, 4.5);
+      x.fillRect(i * 5 - 1.4, hy + 22 + jawOpen * .55, 3, 4);
     }
+
+    // eyes — sunken sockets, bright irises
+    for (const side of [-1, 1]) {
+      x.fillStyle = '#1a140f';
+      x.beginPath(); x.ellipse(side * 12, hy - 5, 9.5, 8.5, 0, 0, 7); x.fill();
+      x.fillStyle = type === 'foxy' ? '#efe5cd' : '#e8e0cc';
+      x.beginPath(); x.ellipse(side * 12, hy - 5, 7, 6.3, 0, 0, 7); x.fill();
+      x.fillStyle = eyeCol;
+      x.shadowColor = eyeCol; x.shadowBlur = close ? 16 : 10;
+      x.beginPath(); x.arc(side * 12, hy - 5, close ? 3.6 : 3, 0, 7); x.fill();
+      x.shadowBlur = 0;
+      x.fillStyle = '#080605';
+      x.beginPath(); x.arc(side * 12, hy - 5, 1.5, 0, 7); x.fill();
+      x.fillStyle = 'rgba(255,250,235,.85)';
+      x.beginPath(); x.arc(side * 12 - 1.2, hy - 6.6, .9, 0, 7); x.fill();
+      // angry brow
+      x.strokeStyle = 'rgba(15,10,7,.85)'; x.lineWidth = 2.6;
+      x.beginPath();
+      x.moveTo(side * 18, hy - 17); x.lineTo(side * 6, hy - 12);
+      x.stroke();
+    }
+    // Foxy eyepatch
     if (type === 'foxy') {
       x.fillStyle = '#0d0b09';
-      x.beginPath(); x.ellipse(-11, hy - 3, 8, 7, 0, 0, 7); x.fill();
+      x.beginPath(); x.ellipse(-12, hy - 5, 9, 8, 0, 0, 7); x.fill();
+      x.strokeStyle = '#0d0b09'; x.lineWidth = 2;
+      x.beginPath(); x.moveTo(-24, hy - 14); x.lineTo(24, hy - 20); x.stroke();
     }
-    // shade/darken lower half
-    const shade = x.createLinearGradient(0, -230, 0, 0);
-    shade.addColorStop(0, 'rgba(0,0,0,0)'); shade.addColorStop(1, 'rgba(0,0,0,.35)');
-    x.fillStyle = shade; x.fillRect(-70, -250, 140, 250);
+    // Chica bib
+    if (type === 'chica') {
+      x.fillStyle = '#ece4d0';
+      x.beginPath(); x.ellipse(0, -132, 17, 12, -.1, 0, 7); x.fill();
+      x.fillStyle = '#b5473a'; x.font = 'bold 6px Georgia, serif'; x.textAlign = 'center';
+      x.fillText('LET\'S EAT', 0, -130);
+    }
+    // cheek highlights
+    x.fillStyle = 'rgba(255,240,210,.08)';
+    x.beginPath(); x.ellipse(-18, hy - 16, 8, 12, -.3, 0, 7); x.fill();
+
+    // overall lower-body shade for depth
+    const lower = x.createLinearGradient(0, -150, 0, 0);
+    lower.addColorStop(0, 'rgba(0,0,0,0)');
+    lower.addColorStop(.7, 'rgba(0,0,0,.18)');
+    lower.addColorStop(1, 'rgba(0,0,0,.42)');
+    x.fillStyle = lower;
+    x.fillRect(-50, -155, 100, 158);
+
     x.restore();
   }
 

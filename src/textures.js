@@ -594,3 +594,175 @@ export function exitTexture() {
   x.fillText('EXIT', w / 2, 45);
   return finish(c, 1, 1);
 }
+
+/* ---------------------------------------------------------- lighting / fx */
+export function glowTexture() {
+  const s = 128, c = canvas(s, s), x = c.getContext('2d');
+  const g = x.createRadialGradient(s / 2, s / 2, 0, s / 2, s / 2, s / 2);
+  g.addColorStop(0, 'rgba(255,255,255,1)');
+  g.addColorStop(.15, 'rgba(255,255,255,.82)');
+  g.addColorStop(.42, 'rgba(255,255,255,.25)');
+  g.addColorStop(.75, 'rgba(255,255,255,.05)');
+  g.addColorStop(1, 'rgba(255,255,255,0)');
+  x.fillStyle = g; x.fillRect(0, 0, s, s);
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}
+
+export function blobTexture() {
+  const s = 128, c = canvas(s, s), x = c.getContext('2d');
+  const g = x.createRadialGradient(s / 2, s / 2, 0, s / 2, s / 2, s / 2);
+  g.addColorStop(0, 'rgba(0,0,0,.92)');
+  g.addColorStop(.5, 'rgba(0,0,0,.55)');
+  g.addColorStop(1, 'rgba(0,0,0,0)');
+  x.fillStyle = g; x.fillRect(0, 0, s, s);
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}
+
+export function hazardTexture() {
+  const w = 256, h = 128, c = canvas(w, h), x = c.getContext('2d');
+  x.fillStyle = '#c9a227'; x.fillRect(0, 0, w, h);
+  x.save();
+  x.strokeStyle = '#1a1712'; x.lineWidth = 26;
+  for (let i = -h; i < w + h; i += 64) {
+    x.beginPath(); x.moveTo(i, h); x.lineTo(i + h, 0); x.stroke();
+  }
+  x.restore();
+  grime(x, w, h, 30, 'rgba(20,16,10,');
+  scratches(x, w, h, 30, 'rgba(255,245,210,.14)');
+  return finish(c, 1, 1);
+}
+
+export function neonSignTexture() {
+  const w = 1024, h = 220, c = canvas(w, h), x = c.getContext('2d');
+  x.fillStyle = 'rgba(8,5,4,0)'; x.fillRect(0, 0, w, h);
+  x.textAlign = 'center';
+  x.font = 'bold 94px Georgia, serif';
+  // layered glow
+  for (const [blur, alpha, color] of [[46, .22, '#ff5a36'], [26, .34, '#ffb45a'], [8, .9, '#ffe4ae']]) {
+    x.shadowColor = color; x.shadowBlur = blur;
+    x.fillStyle = `rgba(255,236,196,${alpha})`;
+    x.fillText('FAZBEAR', w / 2, 116);
+  }
+  x.shadowBlur = 0;
+  x.fillStyle = '#ffcf8a';
+  x.font = '22px Georgia, serif';
+  x.fillText('E N T E R T A I N M E N T', w / 2, 166);
+  // little stars
+  for (const sx of [180, 844]) {
+    x.save(); x.translate(sx, 88); x.fillStyle = '#ffd68a'; x.shadowColor = '#ffb24a'; x.shadowBlur = 20;
+    x.beginPath();
+    for (let i = 0; i < 10; i++) {
+      const a = -Math.PI / 2 + i * Math.PI / 5;
+      const r = i % 2 ? 8 : 19;
+      x[i ? 'lineTo' : 'moveTo'](Math.cos(a) * r, Math.sin(a) * r);
+    }
+    x.closePath(); x.fill(); x.restore();
+  }
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}
+
+export function concreteTexture() {
+  const w = 512, h = 512, c = canvas(w, h), x = c.getContext('2d');
+  x.fillStyle = '#6d675b'; x.fillRect(0, 0, w, h);
+  for (let i = 0; i < 160; i++) {
+    const gx = rand() * w, gy = rand() * h, r = 4 + rand() * 42;
+    const g = x.createRadialGradient(gx, gy, 0, gx, gy, r);
+    const a = .025 + rand() * .07;
+    g.addColorStop(0, rand() > .5 ? `rgba(255,248,232,${a})` : `rgba(18,15,11,${a * 1.5})`);
+    g.addColorStop(1, 'rgba(0,0,0,0)');
+    x.fillStyle = g; x.fillRect(gx - r, gy - r, r * 2, r * 2);
+  }
+  // hairline cracks
+  x.strokeStyle = 'rgba(24,20,15,.35)'; x.lineWidth = 1;
+  for (let i = 0; i < 12; i++) {
+    let px = rand() * w, py = rand() * h;
+    x.beginPath(); x.moveTo(px, py);
+    for (let j = 0; j < 5; j++) { px += (rand() - .5) * 46; py += (rand() - .5) * 46; x.lineTo(px, py); }
+    x.stroke();
+  }
+  grime(x, w, h, 40, 'rgba(20,16,10,');
+  return finish(c, 2, 2);
+}
+
+/* ---------------------------------------------------------- bump maps */
+const bumpCache = new Map();
+export function bumpTexture(kind = 'plaster') {
+  if (bumpCache.has(kind)) return bumpCache.get(kind);
+  const w = 256, h = 256, c = canvas(w, h), x = c.getContext('2d');
+  x.fillStyle = '#808080'; x.fillRect(0, 0, w, h);
+  if (kind === 'plaster') {
+    for (let i = 0; i < 900; i++) {
+      const a = (rand() - .5) * 16;
+      const v = Math.max(0, Math.min(255, 128 + a));
+      x.fillStyle = `rgba(${v},${v},${v},${.15 + rand() * .2})`;
+      x.fillRect(rand() * w, rand() * h, 1 + rand() * 4, 1 + rand() * 2);
+    }
+    // trowel arcs
+    x.lineWidth = 2;
+    for (let i = 0; i < 13; i++) {
+      x.strokeStyle = `rgba(${rand() > .5 ? 150 : 96},${rand() > .5 ? 150 : 96},120,.12)`;
+      x.beginPath(); x.arc(rand() * w, rand() * h, 12 + rand() * 44, rand() * 6, rand() * 6); x.stroke();
+    }
+  } else if (kind === 'tile') {
+    const n = 4, s = w / n;
+    for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) {
+      const v = 132 + ((i + j) % 2 ? -6 : 6);
+      x.fillStyle = `rgb(${v},${v},${v})`;
+      x.fillRect(i * s + 2, j * s + 2, s - 4, s - 4);
+    }
+    x.strokeStyle = '#4a4a4a'; x.lineWidth = 3;
+    for (let i = 0; i <= n; i++) {
+      x.beginPath(); x.moveTo(i * s, 0); x.lineTo(i * s, h); x.stroke();
+      x.beginPath(); x.moveTo(0, i * s); x.lineTo(w, i * s); x.stroke();
+    }
+  } else if (kind === 'wood') {
+    for (let i = 0; i < 90; i++) {
+      const y = rand() * h;
+      x.strokeStyle = `rgba(${rand() > .5 ? 158 : 94},${rand() > .5 ? 158 : 94},${rand() > .5 ? 158 : 94},${.12 + rand() * .24})`;
+      x.lineWidth = .5 + rand() * 1.6;
+      x.beginPath(); x.moveTo(0, y);
+      x.bezierCurveTo(w * .3, y + (rand() - .5) * 14, w * .6, y + (rand() - .5) * 14, w, y + (rand() - .5) * 8);
+      x.stroke();
+    }
+  } else if (kind === 'metal') {
+    for (let y = 0; y < h; y += 32) {
+      x.fillStyle = '#a0a0a0'; x.fillRect(0, y, w, 26);
+      x.fillStyle = '#555'; x.fillRect(0, y + 26, w, 6);
+      x.fillStyle = '#c8c8c8'; x.fillRect(0, y, w, 2);
+    }
+    for (let y = 16; y < h; y += 64) {
+      x.fillStyle = '#3a3a3a';
+      for (const bx of [16, w - 16]) { x.beginPath(); x.arc(bx, y, 3, 0, 7); x.fill(); }
+    }
+  } else if (kind === 'fabric') {
+    for (let i = 0; i < w; i += 4) {
+      x.fillStyle = 'rgba(110,110,110,.35)'; x.fillRect(i, 0, 1, h);
+      x.fillStyle = 'rgba(150,150,150,.22)'; x.fillRect(0, i, w, 1);
+    }
+    for (let i = 0; i < 110; i++) {
+      const v = 128 + (rand() - .5) * 40;
+      x.fillStyle = `rgba(${v},${v},${v},.18)`;
+      x.fillRect(rand() * w, rand() * h, 1 + rand() * 3, 1 + rand() * 3);
+    }
+  } else {
+    for (let i = 0; i < 500; i++) {
+      const v = 128 + (rand() - .5) * 46;
+      x.fillStyle = `rgba(${v},${v},${v},.2)`;
+      x.fillRect(rand() * w, rand() * h, 1 + rand() * 3, 1 + rand() * 3);
+    }
+  }
+  const t = new THREE.CanvasTexture(c);
+  t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  t.anisotropy = 4;
+  const reps = { tile: [4, 4], wood: [2, 2], metal: [1, 3], fabric: [2, 2], plaster: [2, 2] };
+  const r = reps[kind] || [2, 2];
+  t.repeat.set(r[0], r[1]);
+  bumpCache.set(kind, t);
+  return t;
+}

@@ -25,6 +25,8 @@ export const NIGHT_SUBS = [
   'The suits are empty.'
 ];
 
+export const CAM_ORDER = ['1A', '1B', '1C', '2A', '2B', '3', '4A', '4B', '5'];
+
 export class Game {
   constructor(audio, events = {}) {
     this.audio = audio;
@@ -49,6 +51,11 @@ export class Game {
     this.startDelay = 0;
     this.unlocked = 1;
     this.stats = null;
+    this.lureCd = 0;
+    this.lureCooldown = 26;
+    this.lureCost = 4.5;
+    this.lureT = 0;
+    this._warned = { twenty: false, ten: false };
   }
 
   loadProgress() {
@@ -82,6 +89,9 @@ export class Game {
     this.startDelay = 12;
     this._hour = -1;
     this.foxy = { stage: 0, timer: 17, running: false, runT: 0, side: 'left' };
+    this.lureCd = 0;
+    this.lureT = 0;
+    this._warned = { twenty: false, ten: false };
     this.ai = {
       bonnie: this._makeAI('bonnie', 6.0, 6.4),
       chica: this._makeAI('chica', 5.0, 6.4),
@@ -161,6 +171,81 @@ export class Game {
     return null;
   }
 
+  /* How much the hour weighs on their aggression — later hours are meaner. */
+  timePressure() {
+    return 1 + Math.max(0, Math.min(5, this.hourIndex())) * .12;
+  }
+
+  camForAI(name, a) {
+    if (!a) return null;
+    const pos = a.path[a.index];
+    if (name === 'bonnie') return pos === 'westHall' ? '2A' : pos === 'westCorner' ? '2B' : pos === 'dining' ? '1B' : '1A';
+    if (name === 'chica' || name === 'freddy') return pos === 'eastHall' ? '4A' : pos === 'eastCorner' ? '4B' : pos === 'dining' ? '1B' : '1A';
+    return null;
+  }
+
+  /* Every camera that currently contains something that moves. */
+  motionCams() {
+    const out = new Set();
+    for (const name in this.ai) {
+      const cam = this.camForAI(name, this.ai[name]);
+      if (cam) out.add(cam);
+    }
+    const f = this.foxy;
+    if (f.running) {
+      out.add(f.runT > .85 ? '2B' : '2A');
+    } else if (f.stage >= 1) {
+      out.add('1C');
+    }
+    return out;
+  }
+
+  camHasMotion(id) {
+    return this.motionCams().has(id);
+  }
+
+  lureReady() {
+    return this.state === 'playing' && !this.blackout && this.lureCd <= 0;
+  }
+
+  /* Audio lure: a cheap distraction that buys a few seconds, but burns power. */
+  lure() {
+    if (!this.lureReady()) return false;
+    this.lureCd = this.lureCooldown;
+    this.lureT = 3.2;
+    this.power = Math.max(0, this.power - this.lureCost);
+    this.audio.lure();
+    let pulled = 0;
+    for (const name in this.ai) {
+      const a = this.ai[name];
+      if (a.atDoor) {
+        a.atDoor = false;
+        a.index = Math.max(1, a.path.length - 3);
+        a.cooldown = 8 + Math.random() * 5;
+        a.timer = a.interval;
+        a.blockT = 0;
+        pulled++;
+      } else {
+        a.timer += 4.5 + Math.random() * 4;
+        a.cooldown = Math.max(a.cooldown, 1.1 + Math.random() * 1.6);
+      }
+    }
+    if (this.foxy.stage > 0 && !this.foxy.running) {
+      this.foxy.stage = Math.max(0, this.foxy.stage - 1);
+      this.foxy.timer = 7 + Math.random() * 5;
+      pulled++;
+    }
+    if (pulled) {
+      this.events.onRetreat?.('left', 'lure');
+      this.events.onRetreat?.('right', 'lure');
+      this.events.onClearCharacters?.();
+    }
+    this.events.onLure?.(pulled);
+    this.events.onMessage?.(pulled ? 'The lure pulled something away from the office.' : 'The lure echoes through the halls. Nothing answers.');
+    if (this.power <= 0) this._beginBlackout();
+    return true;
+  }
+
   openCams() {
     if (this.state !== 'playing' || this.blackout || this.camOpen) return;
     this.camOpen = true;
@@ -185,6 +270,8 @@ export class Game {
   update(dt) {
     if (this.state !== 'playing') return;
     dt = Math.min(dt, .1);
+    if (this.lureCd > 0) this.lureCd = Math.max(0, this.lureCd - dt);
+    if (this.lureT > 0) this.lureT = Math.max(0, this.lureT - dt);
     const prevHour = this.hourIndex();
     this.nightT += dt;
     if (this.hourIndex() !== prevHour && this.nightT < NIGHT_SECONDS) {
@@ -198,6 +285,16 @@ export class Game {
       if (this.blackout) return;
       this._updateAI(dt);
       this._updateFoxy(dt);
+      if (!this._warned.twenty && this.power <= 20) {
+        this._warned.twenty = true;
+        this.events.onMessage?.('Power at 20%. Start choosing which doors matter.');
+        this.events.onPowerWarn?.('twenty');
+      }
+      if (!this._warned.ten && this.power <= 10) {
+        this._warned.ten = true;
+        this.events.onMessage?.('Power at 10%. They can hear the doors open.');
+        this.events.onPowerWarn?.('ten');
+      }
     } else {
       this._updateBlackout(dt);
     }
@@ -207,6 +304,7 @@ export class Game {
     if (this.doors.right) u += 1;
     if (this.lights.left || this.lights.right) u += .55;
     if (this.camOpen) u += .5;
+    if (this.lureT > 0) u += .35;
     this.usage = u;
   }
 
@@ -231,6 +329,7 @@ export class Game {
     this.doors.left = this.doors.right = false;
     this.lights.left = this.lights.right = false;
     this.camOpen = false;
+    this.lureT = 0;
     this.audio.powerDown();
     this.events.onPowerOut?.();
     // Foxy retreats in the dark; Freddy comes for you.
@@ -256,6 +355,7 @@ export class Game {
 
   _updateAI(dt) {
     if (this.startDelay > 0) { this.startDelay -= dt; return; }
+    const pressure = this.timePressure();
     for (const name in this.ai) {
       const a = this.ai[name];
       // Freddy is shy — he freezes if you are watching his room.
@@ -281,8 +381,8 @@ export class Game {
       if (watching) continue;
       a.timer -= dt;
       if (a.timer <= 0) {
-        a.timer = a.interval * (.82 + Math.random() * .5);
-        const chance = a.level / 20;
+        a.timer = (a.interval / (.82 + pressure * .18)) * (.82 + Math.random() * .5);
+        const chance = Math.min(.82, (a.level / 20) * pressure);
         if (Math.random() < chance) {
           this._advance(a);
         } else if (Math.random() < .13) {
@@ -294,11 +394,7 @@ export class Game {
   }
 
   camMatches(name, a) {
-    const pos = a.path[a.index];
-    if (name === 'bonnie') return pos === 'westHall' ? this.cam === '2A' : pos === 'westCorner' ? this.cam === '2B' : pos === 'dining' ? this.cam === '1B' : this.cam === '1A';
-    if (name === 'chica') return pos === 'eastHall' ? this.cam === '4A' : pos === 'eastCorner' ? this.cam === '4B' : pos === 'dining' ? this.cam === '1B' : this.cam === '1A';
-    if (name === 'freddy') return pos === 'eastHall' ? this.cam === '4A' : pos === 'eastCorner' ? this.cam === '4B' : pos === 'dining' ? this.cam === '1B' : this.cam === '1A';
-    return false;
+    return this.camForAI(name, a) === this.cam;
   }
 
   _advance(a) {
@@ -353,7 +449,7 @@ export class Game {
     if (this.camOpen && this.cam === '1C') {
       f.timer = Math.max(f.timer, 9);
       // watching keeps him at bay
-      if (f.stage === 3) f.timer = Math.max(f.timer, 5);
+      if (f.stage === 3) f.timer = Math.max(f.timer, 6);
     }
     if (f.stage >= 3) {
       f.timer -= dt;
@@ -367,8 +463,8 @@ export class Game {
     }
     f.timer -= dt;
     if (f.timer <= 0) {
-      const chance = this.levels.foxy / 20;
-      if (Math.random() < chance + .12) {
+      const chance = Math.min(.8, (this.levels.foxy / 20 + .12) * this.timePressure());
+      if (Math.random() < chance) {
         f.stage++;
         f.timer = f.stage >= 3 ? 5.2 : 13.5;
         this.audio.servo(-.6);

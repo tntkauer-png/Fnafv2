@@ -1,6 +1,6 @@
 import { World } from './world.js';
 import { FeedRenderer } from './feeds.js';
-import { Game, NIGHT_SUBS } from './game.js';
+import { Game, NIGHT_SUBS, CAM_ORDER } from './game.js';
 import { AudioEngine } from './audio.js';
 
 const $ = s => document.querySelector(s);
@@ -21,13 +21,19 @@ const els = {
   powerBars: $$('.power-bars i'),
   usageBars: $$('#usage-bars i'),
   camsBtn: $('#cams-btn'),
+  lureBtn: $('#lure-btn'),
+  lureState: $('#lure-state'),
+  lureCd: $('#lure-cd'),
   camOverlay: $('#cam-overlay'),
   camsClose: $('#cams-close'),
+  camPrev: $('#cam-prev'),
+  camNext: $('#cam-next'),
   camGrid: $('#cam-grid'),
   camHeaderTime: $('#cam-header-time'),
   feedCanvas: $('#feed-canvas'),
   feedLabel: $('#feed-label'),
   feedTime: $('#feed-time'),
+  feedMotion: $('#feed-motion'),
   camWarn: $('#cam-warn'),
   muteBtn: $('#mute-btn'),
   menuSound: $('#menu-sound'),
@@ -75,7 +81,7 @@ let promptTimer = null;
 let deathTimer = null;
 let winTimer = null;
 let fpsAcc = 0, fpsFrames = 0, quality = 1, goodWindows = 0;
-let lastHud = { time: '', power: -1, usage: -1, doors: '', lights: '', cam: null, low: null };
+let lastHud = { time: '', power: -1, usage: -1, doors: '', lights: '', cam: null, low: null, lure: null, motion: '' };
 let look = { yaw: 0, pitch: 0 };
 let drag = null;
 const keys = new Set();
@@ -131,6 +137,17 @@ async function boot() {
       showPrompt(side === 'left' ? 'SOMETHING IS IN THE WEST DOORWAY — CLOSE IT' : 'SOMETHING IS IN THE EAST DOORWAY — CLOSE IT', 2400);
     },
     onMessage: text => showToast(text),
+    onPowerWarn: level => {
+      if (level === 'ten') flash('#b4302a', 160);
+      showPrompt(level === 'ten' ? 'POWER CRITICAL — DOORS ARE EXPENSIVE' : 'POWER LOW — WATCH THE USAGE METER', 2600);
+    },
+    onLure: pulled => {
+      els.lureBtn.classList.remove('firing');
+      void els.lureBtn.offsetWidth;
+      els.lureBtn.classList.add('firing');
+      if (game.camOpen) glitchFeed(1.6);
+      if (pulled) showToast('Audio lure — footsteps move away.', 'good');
+    },
     onMove: () => {
       if (game.camOpen) glitchFeed(1);
     }
@@ -223,6 +240,9 @@ function beginNightFlow(n) {
   world.setFoxyRunning(false);
   cornerCache.left = cornerCache.right = null;
   game.startNight(n);
+  lastHud = { time: '', power: -1, usage: -1, doors: '', lights: '', cam: null, low: null, lure: null, motion: '' };
+  els.lureBtn.classList.remove('firing');
+  els.feedMotion.classList.add('hidden');
   look = { yaw: 0, pitch: -0.07 };
   world.yaw = world.targetYaw = 0;
   world.pitch = world.targetPitch = -0.07;
@@ -253,6 +273,7 @@ function beginShift() {
   hintTimer = setTimeout(() => els.hudHint.classList.add('fade'), 8000);
   if (selectedNight === 1) {
     setTimeout(() => showToast('Tap LIGHT on either side to check the halls.'), 4500);
+    setTimeout(() => showToast('AUDIO LURE sends them away — use it sparingly.'), 9500);
   }
 }
 
@@ -314,6 +335,21 @@ els.camsBtn.addEventListener('click', () => {
   if (game.camOpen) game.closeCams(); else game.openCams();
 });
 els.camsClose.addEventListener('click', () => { if (game.camOpen) game.closeCams(); });
+els.lureBtn.addEventListener('click', () => {
+  if (state !== 'playing') return;
+  audio.init();
+  game.lure();
+  updateHud(true);
+});
+
+function cycleCam(dir) {
+  if (!game.camOpen) return;
+  const i = CAM_ORDER.indexOf(game.cam);
+  const next = CAM_ORDER[(i + dir + CAM_ORDER.length) % CAM_ORDER.length];
+  game.selectCam(next);
+}
+els.camPrev.addEventListener('click', () => cycleCam(-1));
+els.camNext.addEventListener('click', () => cycleCam(1));
 
 $$('.cam-sel').forEach(btn => {
   btn.addEventListener('click', () => {
@@ -322,16 +358,37 @@ $$('.cam-sel').forEach(btn => {
   });
 });
 
+$$('.fp-hit').forEach(room => {
+  room.addEventListener('click', () => {
+    if (!game.camOpen) return;
+    game.selectCam(room.dataset.cam);
+  });
+});
+
 window.addEventListener('keydown', e => {
   if (e.repeat) return;
   keys.add(e.key.toLowerCase());
   if (state === 'playing') {
-    if (e.code === 'Space') { e.preventDefault(); game.camOpen ? game.closeCams() : game.openCams(); }
-    if (e.key === 'Escape') { if (game.camOpen) game.closeCams(); else pauseGame(); }
+    if (e.code === 'Space') {
+      e.preventDefault();
+      game.camOpen ? game.closeCams() : game.openCams();
+      return;
+    }
+    if (game.camOpen) {
+      if (e.key === 'Escape') { game.closeCams(); return; }
+      if (e.key === 'ArrowLeft') { e.preventDefault(); cycleCam(-1); return; }
+      if (e.key === 'ArrowRight') { e.preventDefault(); cycleCam(1); return; }
+      const n = parseInt(e.key, 10);
+      if (n >= 1 && n <= 9) { e.preventDefault(); game.selectCam(CAM_ORDER[n - 1]); return; }
+      if (e.key.toLowerCase() === 'f') { game.lure(); return; }
+      return;
+    }
+    if (e.key === 'Escape') { pauseGame(); return; }
     if (e.key === '1') game.toggleDoor('left');
     if (e.key === '2') game.toggleLight('left');
     if (e.key === '3') game.toggleLight('right');
     if (e.key === '4') game.toggleDoor('right');
+    if (e.key.toLowerCase() === 'f') { game.lure(); updateHud(true); }
   } else if (state === 'paused' && e.key === 'Escape') {
     resumeGame();
   }
@@ -359,11 +416,20 @@ function handleCams(open) {
   }
 }
 function handleCamSwitch(id) {
+  // The feed renderer keeps its own camera id; point it at the new room
+  // immediately so switching cameras updates the picture without closing
+  // and reopening the tablet.
+  feed.setCam(id);
   updateActiveCam(id);
   glitchFeed(1);
+  if (game && game.camOpen) {
+    feed.draw(game, .016);
+    setFeedClock();
+  }
 }
 function updateActiveCam(id) {
   $$('.cam-sel').forEach(b => b.classList.toggle('active', b.dataset.cam === id));
+  $$('.fp-hit').forEach(r => r.classList.toggle('active', r.dataset.cam === id));
   const map = {
     '1A': 'SHOW STAGE', '1B': 'DINING AREA', '1C': 'PIRATE COVE',
     '2A': 'WEST HALL', '2B': 'WEST HALL CORNER', '3': 'SUPPLY CLOSET',
@@ -586,6 +652,33 @@ function updateHud(force = false) {
     els.camsBtn.classList.toggle('active', game.camOpen);
     lastHud.cam = game.camOpen;
   }
+  const lureReady = game.lureReady();
+  const lureKey = `${lureReady}|${Math.ceil(game.lureCd)}|${game.blackout}`;
+  if (force || lureKey !== lastHud.lure) {
+    els.lureBtn.classList.toggle('ready', lureReady);
+    els.lureBtn.classList.toggle('busy', !lureReady && !game.blackout);
+    els.lureState.textContent = game.blackout ? 'NO POWER' : lureReady ? 'READY' : `${Math.ceil(game.lureCd)}s`;
+    els.lureCd.style.width = `${Math.min(100, Math.max(0, (1 - game.lureCd / game.lureCooldown) * 100))}%`;
+    lastHud.lure = lureKey;
+  }
+  updateCamAlerts(force);
+}
+
+function updateCamAlerts(force = false) {
+  if (!game || !game.motionCams) return;
+  const motion = game.motionCams();
+  const sig = [...motion].sort().join(',') + '|' + game.cam;
+  if (!force && sig === lastHud.motion) return;
+  lastHud.motion = sig;
+  const has = id => motion.has(id);
+  $$('.cam-sel').forEach(b => b.classList.toggle('alert', has(b.dataset.cam)));
+  $$('.fp-hit').forEach(r => {
+    r.classList.toggle('motion', has(r.dataset.cam));
+    r.classList.toggle('active', r.dataset.cam === game.cam);
+  });
+  const count = motion.size;
+  els.camWarn.textContent = count ? `● ${count} MOVING` : '';
+  els.feedMotion.classList.toggle('hidden', !has(game.cam));
 }
 
 function setFeedClock() {
@@ -596,12 +689,7 @@ function setFeedClock() {
   const ss = String(Math.floor((game.nightT * 60) % 60)).padStart(2, '0');
   els.feedTime.textContent = `${h}:${mm}:${ss} AM`;
   els.camHeaderTime.textContent = `${h}:${mm} AM · NIGHT ${game.night}`;
-  let warn = '';
-  for (const k in game.ai) {
-    const a = game.ai[k];
-    if (game.camMatches(k, a)) { warn = '● MOTION'; break; }
-  }
-  els.camWarn.textContent = warn;
+  updateCamAlerts();
 }
 
 function syncWorldCharacters() {

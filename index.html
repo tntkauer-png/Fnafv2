@@ -59,12 +59,19 @@
         <div class="usage"><span>USAGE</span><div class="usage-bars" id="usage-bars"><i></i><i></i><i></i><i></i></div></div>
       </button>
 
-      <button id="cams-btn" class="cam-btn" aria-label="Open camera tablet">
-        <span class="cam-led"></span>
-        <span class="cam-icon">▣</span>
-        <span class="cam-text">CAMERAS</span>
-        <span class="cam-key">SPACE</span>
-      </button>
+      <div class="hud-center">
+        <button id="lure-btn" class="lure-btn" aria-label="Play audio lure">
+          <span class="lure-icon">◖))</span>
+          <span class="lure-copy"><b>AUDIO LURE</b><em id="lure-state">READY</em></span>
+          <span class="lure-cd" id="lure-cd"></span>
+        </button>
+        <button id="cams-btn" class="cam-btn" aria-label="Open camera tablet">
+          <span class="cam-led"></span>
+          <span class="cam-icon">▣</span>
+          <span class="cam-text">CAMERAS</span>
+          <span class="cam-key">SPACE</span>
+        </button>
+      </div>
 
       <div class="vitals">
         <button id="mute-btn" class="mini-btn" aria-label="Toggle sound">♫</button>
@@ -93,39 +100,39 @@
           <div class="feed-corner bl"></div><div class="feed-corner br"></div>
           <div class="feed-label" id="feed-label">CAM 1A &middot; SHOW STAGE</div>
           <div class="feed-rec"><span class="rec-dot"></span> REC</div>
+          <div class="feed-motion hidden" id="feed-motion">● MOTION</div>
           <div class="feed-time" id="feed-time">12:00:00 AM</div>
           <div class="feed-sig"><span>SIGNAL</span><i></i><i></i><i></i><i></i></div>
         </div>
         <div class="cam-map-panel">
           <div class="map-title">PIZZERIA &mdash; FLOOR 1</div>
           <div class="map-wrap">
-            <svg class="floorplan" viewBox="0 0 240 200" aria-hidden="true">
+            <svg class="floorplan" viewBox="0 0 240 200" aria-label="Security floor plan — tap a room">
               <rect x="8" y="8" width="224" height="184" class="fp-outline"/>
-              <rect x="70" y="18" width="100" height="54" class="fp-room"/>
-              <rect x="18" y="18" width="46" height="40" class="fp-room"/>
-              <rect x="176" y="18" width="48" height="40" class="fp-room"/>
-              <rect x="18" y="84" width="204" height="54" class="fp-room"/>
-              <rect x="92" y="142" width="56" height="42" class="fp-office"/>
-              <rect x="18" y="142" width="68" height="42" class="fp-room"/>
-              <rect x="154" y="142" width="68" height="42" class="fp-room"/>
-              <text x="120" y="48" class="fp-text">SHOW STAGE</text>
-              <text x="120" y="112" class="fp-text">DINING</text>
-              <text x="41" y="38" class="fp-text sm">COVE</text>
-              <text x="200" y="38" class="fp-text sm">BACK</text>
-              <text x="52" y="167" class="fp-text sm">W HALL</text>
-              <text x="188" y="167" class="fp-text sm">E HALL</text>
-              <text x="120" y="168" class="fp-text sm">OFFICE</text>
-              <line x1="70" y1="84" x2="70" y2="138" class="fp-line"/>
-              <line x1="170" y1="84" x2="170" y2="138" class="fp-line"/>
-              <circle cx="120" cy="45" r="4" class="fp-dot"/>
-              <circle cx="120" cy="108" r="4" class="fp-dot"/>
-              <circle cx="41" cy="38" r="4" class="fp-dot"/>
-              <circle cx="45" cy="166" r="4" class="fp-dot"/>
-              <circle cx="45" cy="132" r="4" class="fp-dot"/>
-              <circle cx="41" cy="38" r="4" class="fp-dot"/>
-              <circle cx="198" cy="166" r="4" class="fp-dot"/>
-              <circle cx="198" cy="132" r="4" class="fp-dot"/>
-              <circle cx="200" cy="38" r="4" class="fp-dot"/>
+              <rect x="82" y="14" width="76" height="44" class="fp-room fp-hit" data-cam="1A"><title>Show Stage</title></rect>
+              <rect x="14" y="14" width="60" height="44" class="fp-room fp-hit" data-cam="1C"><title>Pirate Cove</title></rect>
+              <rect x="166" y="14" width="60" height="44" class="fp-room fp-hit" data-cam="5"><title>Backstage</title></rect>
+              <rect x="14" y="64" width="212" height="48" class="fp-room fp-hit" data-cam="1B"><title>Dining Area</title></rect>
+              <rect x="14" y="118" width="60" height="30" class="fp-room fp-hit" data-cam="2A"><title>West Hall</title></rect>
+              <rect x="82" y="118" width="76" height="30" class="fp-room fp-hit" data-cam="3"><title>Supply Closet</title></rect>
+              <rect x="166" y="118" width="60" height="30" class="fp-room fp-hit" data-cam="4A"><title>East Hall</title></rect>
+              <rect x="14" y="154" width="60" height="34" class="fp-room fp-hit" data-cam="2B"><title>West Hall Corner</title></rect>
+              <rect x="82" y="154" width="76" height="34" class="fp-office"><title>Security Office</title></rect>
+              <rect x="166" y="154" width="60" height="34" class="fp-room fp-hit" data-cam="4B"><title>East Hall Corner</title></rect>
+              <text x="120" y="38" class="fp-text">SHOW STAGE</text>
+              <text x="44" y="36" class="fp-text sm">COVE</text>
+              <text x="196" y="36" class="fp-text sm">BACK</text>
+              <text x="120" y="92" class="fp-text">DINING AREA</text>
+              <text x="44" y="136" class="fp-text sm">W HALL</text>
+              <text x="120" y="136" class="fp-text sm">SUPPLY</text>
+              <text x="196" y="136" class="fp-text sm">E HALL</text>
+              <text x="44" y="172" class="fp-text sm">W CORNER</text>
+              <text x="120" y="174" class="fp-text sm">OFFICE</text>
+              <text x="196" y="172" class="fp-text sm">E CORNER</text>
+              <line x1="82" y1="58" x2="82" y2="64" class="fp-line"/>
+              <line x1="158" y1="58" x2="158" y2="64" class="fp-line"/>
+              <circle cx="120" cy="30" r="2.4" class="fp-dot"/>
+              <circle cx="120" cy="86" r="2.4" class="fp-dot"/>
             </svg>
           </div>
           <div class="cam-grid" id="cam-grid">
@@ -142,8 +149,12 @@
         </div>
       </div>
       <div class="cam-footer">
-        <span>DRAG TO LOOK &middot; TAP A CAMERA</span>
-        <span id="cam-warn"></span>
+        <span>DRAG TO LOOK &middot; TAP A ROOM &middot; ← → CYCLE</span>
+        <div class="cam-nav">
+          <button id="cam-prev" class="cam-nav-btn" aria-label="Previous camera">◀</button>
+          <span id="cam-warn"></span>
+          <button id="cam-next" class="cam-nav-btn" aria-label="Next camera">▶</button>
+        </div>
       </div>
     </div>
   </div>
@@ -179,8 +190,10 @@
         <div><b>LOOK</b> drag anywhere</div>
         <div><b>DOORS</b> hold them shut</div>
         <div><b>LIGHTS</b> check the halls</div>
-        <div><b>WATCH</b> power &amp; cameras</div>
+        <div><b>AUDIO</b> lure them away</div>
+        <div><b>CAMS</b> sweep every room</div>
       </div>
+      <div class="menu-keys">DESKTOP &middot; SPACE CAMS &middot; 1/4 DOORS &middot; 2/3 LIGHTS &middot; F AUDIO &middot; ESC PAUSE</div>
       <div class="menu-foot">FAN-MADE TRIBUTE &middot; NOT AFFILIATED WITH SCOTT CAWTHON / STEEL WOOL &middot; SOUND ON</div>
     </div>
     <button id="menu-sound" class="mini-btn menu-sound" aria-label="Toggle sound">♫</button>

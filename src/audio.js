@@ -164,6 +164,17 @@ export class AudioEngine {
     this._play(this._noise, { rate: 1.5, gain: .14, filter: { type: 'highpass', freq: 1200 } });
     this._tone({ f: 2200, f2: 700, type: 'square', gain: .018, dur: .06 });
   }
+  lure() {
+    if (!this.ctx) return;
+    // A tinny, distant calliope. Unsettling on purpose.
+    const notes = [783.99, 659.25, 587.33, 493.88, 587.33, 659.25, 783.99];
+    notes.forEach((f, i) => {
+      this._tone({ f, type: 'triangle', gain: .045, dur: .5, delay: i * .18, pan: -.55 + (i % 3) * .2, filter: { type: 'bandpass', freq: 1800, q: 2.2 } });
+      this._tone({ f: f * 1.5, type: 'sine', gain: .012, dur: .35, delay: i * .18, pan: .2 });
+    });
+    this._play(this._noise, { rate: .6, gain: .07, filter: { type: 'bandpass', freq: 900, q: 1.2 } });
+    this._tone({ f: 120, f2: 55, type: 'sawtooth', gain: .05, dur: .9, filter: { type: 'lowpass', freq: 500 } });
+  }
   staticBurst(amount = .12) {
     this._play(this._noise, { rate: 1.3, gain: amount, filter: { type: 'highpass', freq: 800 } });
   }

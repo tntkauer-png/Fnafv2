@@ -177,6 +177,21 @@ button{font-family:inherit;color:inherit;border:0;background:none;padding:0;curs
 .cam-btn.active{border-color:rgba(255,90,64,.5);background:linear-gradient(180deg,rgba(112,32,25,.7),rgba(26,8,6,.9))}
 .vitals{display:flex;gap:6px;align-items:flex-end}
 .vitals .mini-btn{width:34px;height:34px;font-size:11px}
+.hud-center{display:flex;flex-direction:column;align-items:center;gap:6px}
+.lure-btn{position:relative;display:flex;align-items:center;gap:8px;padding:6px 12px;border:1px solid rgba(228,220,200,.16);background:linear-gradient(180deg,rgba(28,25,20,.72),rgba(7,6,5,.84));backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);box-shadow:0 4px 18px rgba(0,0,0,.45);overflow:hidden;transition:transform .1s,border-color .2s,background .2s}
+.lure-btn:active{transform:scale(.96)}
+.lure-btn .lure-icon{font-size:13px;letter-spacing:-2px;color:#c9b896;line-height:1}
+.lure-copy{display:flex;flex-direction:column;align-items:flex-start;line-height:1.05}
+.lure-copy b{font-family:'Bebas',sans-serif;font-weight:400;font-size:12.5px;letter-spacing:.14em;color:#ded3ba}
+.lure-copy em{font-style:normal;font-size:6.5px;letter-spacing:.18em;color:#8b8068}
+.lure-cd{position:absolute;left:0;bottom:0;height:2px;width:0;background:linear-gradient(90deg,#c9463a,#ffb24a);box-shadow:0 0 8px rgba(255,170,70,.5)}
+.lure-btn.ready{border-color:rgba(255,185,90,.4)}
+.lure-btn.ready .lure-icon{color:#ffcf8a;text-shadow:0 0 9px rgba(255,180,80,.55)}
+.lure-btn.busy{opacity:.5;border-color:rgba(228,220,200,.1)}
+.lure-btn.busy .lure-copy em{color:#6d6352}
+.lure-btn.firing{animation:lureFire .5s steps(2)}
+@keyframes lureFire{0%{box-shadow:0 0 0 rgba(255,180,80,0)}30%{box-shadow:0 0 28px rgba(255,190,90,.7)}100%{box-shadow:0 0 0 rgba(255,180,80,0)}}
+.menu-keys{margin-top:14px;font-size:8px;letter-spacing:.18em;color:#5f5749;line-height:1.8;text-align:center}
 
 .view-prompt{position:absolute;left:50%;bottom:calc(96px + var(--safe-b));transform:translateX(-50%);font-size:9px;letter-spacing:.16em;color:#ffcf98;background:rgba(20,6,4,.68);border:1px solid rgba(255,140,90,.25);padding:6px 12px;text-align:center;max-width:78vw}
 
@@ -186,10 +201,14 @@ button{font-family:inherit;color:inherit;border:0;background:none;padding:0;curs
   .power{width:142px}
   .hud-brand{display:none}
   .cam-btn{padding:8px 14px 7px}
+  .lure-btn{padding:5px 9px;gap:5px}
+  .lure-copy b{font-size:10.5px}
+  .lure-copy em{font-size:6px}
+  .lure-btn .lure-icon{font-size:11px}
   .hud-hint{font-size:8px;max-width:88vw;overflow:hidden;text-overflow:ellipsis}
 }
 @media (max-height:500px){
-  .hud-side{bottom:calc(76px + var(--safe-b));flex-direction:row;gap:6px}
+  .hud-side{bottom:calc(86px + var(--safe-b));flex-direction:row;gap:6px}
   .side-label{display:none}
   .ctrl-btn{width:62px;height:48px}
   .hud-bottom{bottom:calc(8px + var(--safe-b))}
@@ -197,6 +216,9 @@ button{font-family:inherit;color:inherit;border:0;background:none;padding:0;curs
   .power-bars i{height:7px}
   .cam-btn{padding:6px 12px}
   .cam-btn .cam-text{font-size:13px}
+  .lure-btn{padding:4px 8px}
+  .lure-copy{flex-direction:row;align-items:baseline;gap:6px}
+  .lure-copy em{display:none}
   .hud-hint{display:none}
 }
 
@@ -243,6 +265,11 @@ button{font-family:inherit;color:inherit;border:0;background:none;padding:0;curs
 .floorplan{display:block;width:100%;height:auto;max-height:150px}
 .fp-outline{fill:none;stroke:rgba(220,208,182,.24);stroke-width:1.5}
 .fp-room{fill:rgba(220,208,182,.035);stroke:rgba(220,208,182,.2);stroke-width:1}
+.fp-hit{cursor:pointer;pointer-events:all;transition:fill .15s,stroke .15s}
+.fp-hit:hover{fill:rgba(220,208,182,.1);stroke:rgba(255,200,150,.45)}
+.fp-hit.motion{fill:rgba(180,48,42,.32);stroke:rgba(255,110,80,.85);animation:fpMotion 1s steps(2) infinite}
+.fp-hit.active{fill:rgba(255,180,90,.16);stroke:rgba(255,200,140,.8)}
+@keyframes fpMotion{50%{fill:rgba(220,60,44,.5)}}
 .fp-office{fill:rgba(180,48,42,.16);stroke:rgba(220,90,70,.6);stroke-width:1.2}
 .fp-line{stroke:rgba(220,208,182,.12);stroke-width:1;stroke-dasharray:2 3}
 .fp-text{font-size:7px;letter-spacing:1px;fill:rgba(220,208,182,.45);text-anchor:middle;font-family:'ShareTech',monospace}
@@ -258,8 +285,12 @@ button{font-family:inherit;color:inherit;border:0;background:none;padding:0;curs
 .cam-sel.active span{color:#c58a76}
 .cam-sel.alert{animation:camAlert 1s steps(2) infinite}
 @keyframes camAlert{50%{border-color:rgba(255,60,40,.7);background:rgba(90,18,14,.5)}}
-.cam-footer{display:flex;justify-content:space-between;gap:10px;padding:7px 12px;border-top:1px solid rgba(220,208,182,.09);font-size:7px;letter-spacing:.16em;color:#655c4d;background:rgba(0,0,0,.3);flex:0 0 auto}
-#cam-warn{color:#ff8a6a}
+.cam-footer{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:7px 12px;border-top:1px solid rgba(220,208,182,.09);font-size:7px;letter-spacing:.16em;color:#655c4d;background:rgba(0,0,0,.3);flex:0 0 auto}
+#cam-warn{color:#ff8a6a;font-size:7px;letter-spacing:.18em}
+.cam-nav{display:flex;align-items:center;gap:8px}
+.cam-nav-btn{width:24px;height:20px;display:grid;place-items:center;border:1px solid rgba(220,208,182,.16);color:#a99c83;background:rgba(255,255,255,.025);font-size:9px}
+.cam-nav-btn:active{background:rgba(255,110,80,.2);color:#ffd2be}
+.feed-motion{position:absolute;top:14px;left:50%;transform:translateX(-50%);font-size:8.5px;letter-spacing:.22em;color:#ff9b84;text-shadow:0 0 10px rgba(255,70,40,.7);animation:recBlink 1s steps(2) infinite}
 
 @media (max-width:760px){
   .cam-body{grid-template-columns:1fr;gap:8px;overflow:auto;padding:8px;scrollbar-width:none}
