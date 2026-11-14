@@ -124,11 +124,23 @@ export class Game {
     const h = Math.min(5, Math.floor(this.nightT / HOUR_SECONDS));
     return h === 0 ? '12' : String(h);
   }
+  /* Single source of truth for the clock: minutes and seconds are derived
+     from the position inside the current hour, so the HUD, the tablet header
+     and the feed timestamp can never drift apart. */
+  clockParts() {
+    const hIdx = Math.min(6, Math.floor(this.nightT / HOUR_SECONDS));
+    const frac = Math.max(0, Math.min(1, (this.nightT - hIdx * HOUR_SECONDS) / HOUR_SECONDS));
+    const mm = Math.floor(frac * 60);
+    const ss = Math.floor((frac * 60 - mm) * 60);
+    return {
+      h: hIdx === 0 ? '12' : String(hIdx),
+      m: String(mm).padStart(2, '0'),
+      s: String(ss).padStart(2, '0')
+    };
+  }
   clockString() {
-    const h = this.displayHour();
-    const total = Math.floor(this.nightT * 12.5);
-    const mm = String(total % 60).padStart(2, '0');
-    return `${h}:${mm} AM`;
+    const c = this.clockParts();
+    return `${c.h}:${c.m} AM`;
   }
   hourIndex() { return Math.floor(this.nightT / HOUR_SECONDS); }
 

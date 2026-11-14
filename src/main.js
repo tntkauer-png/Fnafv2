@@ -1,5 +1,5 @@
 import { World } from './world.js';
-import { FeedRenderer } from './feeds.js';
+import { FeedRenderer } from './feeds3d.js';
 import { Game, NIGHT_SUBS, CAM_ORDER } from './game.js';
 import { AudioEngine } from './audio.js';
 
@@ -683,12 +683,9 @@ function updateCamAlerts(force = false) {
 
 function setFeedClock() {
   if (!game) return;
-  const h = game.displayHour();
-  const total = Math.floor(game.nightT * 12.5);
-  const mm = String(total % 60).padStart(2, '0');
-  const ss = String(Math.floor((game.nightT * 60) % 60)).padStart(2, '0');
-  els.feedTime.textContent = `${h}:${mm}:${ss} AM`;
-  els.camHeaderTime.textContent = `${h}:${mm} AM · NIGHT ${game.night}`;
+  const c = game.clockParts();
+  els.feedTime.textContent = `${c.h}:${c.m}:${c.s} AM`;
+  els.camHeaderTime.textContent = `${c.h}:${c.m} AM · NIGHT ${game.night}`;
   updateCamAlerts();
 }
 
@@ -744,10 +741,10 @@ function tick(now) {
     }
     world.setPower(game.power / 100);
     if (game.camOpen) {
+      feed.draw(game, dt);
       feedAcc += dt;
-      if (feedAcc > .075) {
+      if (feedAcc > .2) {
         feedAcc = 0;
-        feed.draw(game, .075);
         setFeedClock();
       }
     }
@@ -756,6 +753,9 @@ function tick(now) {
   }
 
   world.update(dt);
+  // while the tablet is up its own renderer drives the screen — skip the
+  // office render to keep the two WebGL contexts light on phones.
+  world.renderPaused = game.camOpen && state === 'playing';
 
   // adaptive quality for sustained mobile framerates
   fpsAcc += dt; fpsFrames++;

@@ -238,6 +238,7 @@ button{font-family:inherit;color:inherit;border:0;background:none;padding:0;curs
 .cam-stage{position:relative;background:#050504;border:1px solid rgba(220,208,182,.14);overflow:hidden;min-height:180px;aspect-ratio:16/9;align-self:start}
 #feed-canvas{position:absolute;inset:0;width:100%;height:100%;display:block;filter:saturate(.82) contrast(1.08) brightness(.94)}
 .feed-grain,.feed-scan,.feed-glitch{position:absolute;inset:0;pointer-events:none}
+.feed-burst{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;opacity:0;mix-blend-mode:screen}
 .feed-grain{opacity:.09;mix-blend-mode:screen;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.75' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23g)'/%3E%3C/svg%3E");animation:grainShift .3s steps(3) infinite}
 .feed-scan{opacity:.22;background:repeating-linear-gradient(180deg,rgba(255,255,255,.12) 0 1px,transparent 1px 3px)}
 .feed-scan::after{content:"";position:absolute;left:0;right:0;height:16%;background:linear-gradient(180deg,transparent,rgba(255,255,255,.055),transparent);animation:scanRoll 7s linear infinite}

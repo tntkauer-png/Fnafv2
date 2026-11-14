@@ -1491,7 +1491,7 @@ export class World {
       for (const k in (this.menuChars || {})) this.menuChars[k].group.visible = true;
     }
 
-    this.renderer.render(this.scene, this.mode === 'menu' ? this.menuCamera : this.camera);
+    if (!this.renderPaused) this.renderer.render(this.scene, this.mode === 'menu' ? this.menuCamera : this.camera);
   }
 
   cheer(seconds = 2.4) { this._cheer = 1; this._cheerTime = seconds; }
