@@ -3,7 +3,8 @@ import {
   wallTexture, wainscotTexture, ceilingTexture, floorTexture, posterTexture,
   metalTexture, deskTexture, screenTexture, paperTexture, fanTexture, signTexture,
   ventTexture, suitTexture, lightPanelTexture, exitTexture, finish, rand, resetSeed,
-  glowTexture, blobTexture, hazardTexture, concreteTexture, bumpTexture, neonSignTexture
+  glowTexture, blobTexture, hazardTexture, concreteTexture, neonSignTexture,
+  normalTexture, shutterTexture, shutterNormalTexture
 } from './textures.js';
 
 const OFFICE = { w: 2.6, front: -2.6, back: 3.5, h: 3.0, doorZ: -0.62, doorW: 1.28, doorH: 2.34 };
@@ -68,7 +69,7 @@ export class World {
     this.renderer.setSize(window.innerWidth, window.innerHeight);
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    this.renderer.toneMappingExposure = 1.08;
+    this.renderer.toneMappingExposure = 1.12;
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     this.container.appendChild(this.renderer.domElement);
@@ -169,27 +170,31 @@ export class World {
     this.office = new THREE.Group();
     s.add(this.office);
 
-    // materials
+    // materials — colour + generated tangent-space normals for crisp highlights
+    const ns = (s) => new THREE.Vector2(s, s);
     const wall = new THREE.MeshStandardMaterial({
-      map: wallTexture(), bumpMap: bumpTexture('plaster'), bumpScale: .014,
-      roughness: .93, envMapIntensity: .22
+      map: wallTexture(), normalMap: normalTexture('plaster', 2.2), normalScale: ns(.72),
+      roughness: .92, envMapIntensity: .24
     });
     const wains = new THREE.MeshStandardMaterial({
-      map: wainscotTexture(), bumpMap: bumpTexture('wood'), bumpScale: .02,
-      roughness: .82, envMapIntensity: .28
+      map: wainscotTexture(), normalMap: normalTexture('wood', 2.0), normalScale: ns(.66),
+      roughness: .8, envMapIntensity: .3
     });
     const ceil = new THREE.MeshStandardMaterial({
-      map: ceilingTexture(), bumpMap: bumpTexture('tile'), bumpScale: .01,
+      map: ceilingTexture(), normalMap: normalTexture('tile', 1.4), normalScale: ns(.8),
       roughness: 1, envMapIntensity: .1
     });
     const floorM = new THREE.MeshStandardMaterial({
-      map: floorTexture(), bumpMap: bumpTexture('tile'), bumpScale: .022,
-      roughness: .34, metalness: .18, envMapIntensity: .72
+      map: floorTexture(), normalMap: normalTexture('tile', 1.8), normalScale: ns(.9),
+      roughness: .3, metalness: .2, envMapIntensity: .8
     });
-    const trim = new THREE.MeshStandardMaterial({ color: 0x2a2118, roughness: .68, envMapIntensity: .2 });
-    const metal = new THREE.MeshStandardMaterial({
-      map: metalTexture(), bumpMap: bumpTexture('metal'), bumpScale: .03,
-      roughness: .48, metalness: .62, envMapIntensity: .9
+    const trim = new THREE.MeshStandardMaterial({
+      color: 0x2a2118, normalMap: normalTexture('wood', 1.6), normalScale: ns(.5),
+      roughness: .66, envMapIntensity: .22
+    });
+    const shutterM = new THREE.MeshStandardMaterial({
+      map: shutterTexture(), normalMap: shutterNormalTexture(2.8), normalScale: ns(1),
+      color: 0xe4e0d4, roughness: .44, metalness: .58, envMapIntensity: .9
     });
 
     // floor + ceiling
@@ -250,51 +255,79 @@ export class World {
       this.office.add(box(.1, .1, OFFICE.doorW + .2, trim, x, OFFICE.doorH + headerH - .05, OFFICE.doorZ));
     }
 
-    // door frames + shutters + hall
+    // Door frames, steel shutters and the halls beyond them.
     for (const side of [-1, 1]) {
       const key = side < 0 ? 'left' : 'right';
-      // frame
-      const frameM = mat({ color: 0x3a3126, roughness: .5, metalness: .5 });
+      const doorX = side * OFFICE.w;
+      const faceX = -side; // +1 points into the office
+      const frameM = new THREE.MeshStandardMaterial({
+        color: 0x3a3126, normalMap: normalTexture('metal', 1.8), normalScale: ns(.55),
+        roughness: .46, metalness: .55, envMapIntensity: .55
+      });
+      const steelM = new THREE.MeshStandardMaterial({
+        color: 0x777268, normalMap: normalTexture('metal', 2.2), normalScale: ns(.7),
+        roughness: .36, metalness: .78, envMapIntensity: .95
+      });
+      const rubberM = mat({ color: 0x141210, roughness: .95 });
+
+      // The opening runs along Z. Build the frame unrotated so the posts sit
+      // on the wall rather than poking through it.
       const frame = new THREE.Group();
-      frame.add(box(.13, OFFICE.doorH + .08, .12, frameM, 0, OFFICE.doorH / 2, -OFFICE.doorW / 2 - .05));
-      frame.add(box(.13, OFFICE.doorH + .08, .12, frameM, 0, OFFICE.doorH / 2, OFFICE.doorW / 2 + .05));
-      frame.add(box(.13, .14, OFFICE.doorW + .22, frameM, 0, OFFICE.doorH + .04, 0));
-      frame.position.set(side * OFFICE.w, 0, OFFICE.doorZ);
-      frame.rotation.y = side * Math.PI / 2;
+      frame.position.set(doorX, 0, OFFICE.doorZ);
+      frame.add(box(.22, OFFICE.doorH + .12, .18, frameM, 0, (OFFICE.doorH + .12) / 2, -(OFFICE.doorW / 2 + .09)));
+      frame.add(box(.22, OFFICE.doorH + .12, .18, frameM, 0, (OFFICE.doorH + .12) / 2, OFFICE.doorW / 2 + .09));
+      frame.add(box(.22, .18, OFFICE.doorW + .36, frameM, 0, OFFICE.doorH + .09, 0));
+      // bright inner lip catches the hall light
+      frame.add(box(.06, OFFICE.doorH, .05, steelM, faceX * .09, OFFICE.doorH / 2, -(OFFICE.doorW / 2 + .015)));
+      frame.add(box(.06, OFFICE.doorH, .05, steelM, faceX * .09, OFFICE.doorH / 2, OFFICE.doorW / 2 + .015));
+      frame.add(box(.06, .05, OFFICE.doorW + .02, steelM, faceX * .09, OFFICE.doorH - .025, 0));
+      // rubber bumpers
+      frame.add(box(.035, OFFICE.doorH - .04, .035, rubberM, faceX * .08, OFFICE.doorH / 2, -(OFFICE.doorW / 2 - .032)));
+      frame.add(box(.035, OFFICE.doorH - .04, .035, rubberM, faceX * .08, OFFICE.doorH / 2, OFFICE.doorW / 2 - .032));
       this.office.add(frame);
 
       // hazard threshold plate
       const hazardMat = new THREE.MeshStandardMaterial({ map: hazardTexture(), roughness: .82 });
-      const threshold = plane(.13, OFFICE.doorW + .1, hazardMat, side * (OFFICE.w - .13), .012, OFFICE.doorZ, -Math.PI / 2);
+      const threshold = plane(.16, OFFICE.doorW + .1, hazardMat, doorX + faceX * .02, .013, OFFICE.doorZ, -Math.PI / 2);
       this.office.add(threshold);
-      const warning = plane(.42, .1, new THREE.MeshStandardMaterial({ map: hazardTexture(), roughness: .8 }), side * (OFFICE.w - .06), OFFICE.doorH + .34, OFFICE.doorZ, 0, side < 0 ? Math.PI / 2 : -Math.PI / 2);
+      const warning = plane(.42, .1, new THREE.MeshStandardMaterial({ map: hazardTexture(), roughness: .8 }), doorX + faceX * .045, OFFICE.doorH + .3, OFFICE.doorZ, 0, side < 0 ? Math.PI / 2 : -Math.PI / 2);
       this.office.add(warning);
 
-      // shutter — slides in Y
-      const shutter = box(.1, OFFICE.doorH + .06, OFFICE.doorW + .04, metal, 0, OFFICE.doorH / 2, 0);
-      shutter.castShadow = true; shutter.receiveShadow = true;
+      // Shutter — a single steel panel that slides straight up on Z-aligned rails.
       const sg = new THREE.Group();
-      sg.position.set(side * OFFICE.w, 0, OFFICE.doorZ);
-      sg.rotation.y = side * Math.PI / 2;
-      sg.add(shutter);
-      shutter.position.y = OFFICE.doorH / 2 + 2.4;
+      sg.position.set(doorX, 0, OFFICE.doorZ);
       this.office.add(sg);
-      // warning light strip above door
-      const strip = box(.05, .035, OFFICE.doorW * .8, new THREE.MeshBasicMaterial({ color: 0x52140f, transparent: true, opacity: .9 }), 0, OFFICE.doorH + .13, 0);
+      const shutter = box(.09, OFFICE.doorH + .06, OFFICE.doorW + .02, shutterM, faceX * .05, OFFICE.doorH / 2 + 2.4, 0);
+      shutter.castShadow = true; shutter.receiveShadow = true;
+      sg.add(shutter);
+      for (const zs of [-1, 1]) {
+        sg.add(box(.08, OFFICE.doorH + .16, .07, steelM, faceX * .105, OFFICE.doorH / 2, zs * (OFFICE.doorW / 2 + .045)));
+      }
+      // roller drum + housing above the opening
+      sg.add(box(.34, .2, OFFICE.doorW + .3, frameM, faceX * .01, OFFICE.doorH + .21, 0));
+      const drum = new THREE.Mesh(new THREE.CylinderGeometry(.1, .1, OFFICE.doorW + .17, 18), steelM);
+      drum.rotation.x = Math.PI / 2;
+      drum.position.set(faceX * .01, OFFICE.doorH + .19, 0);
+      drum.castShadow = true;
+      sg.add(drum);
+      // warning light strip + halo on the roller housing
+      const strip = box(.045, .035, OFFICE.doorW * .78, new THREE.MeshBasicMaterial({ color: 0x52140f, transparent: true, opacity: .9 }), faceX * .19, OFFICE.doorH + .2, 0);
       sg.add(strip);
+      const stripGlow = this._glow(0xff3b26, .62, .01);
+      stripGlow.position.set(faceX * .26, OFFICE.doorH + .2, 0);
+      sg.add(stripGlow);
 
       // button panel (visual only)
       const panel = new THREE.Group();
       const pm = mat({ color: 0x2b2823, roughness: .6, metalness: .3 });
       panel.add(box(.05, .54, .3, pm, 0, 0, 0));
-      const b1 = box(.03, .1, .11, mat({ color: 0xa8352c, emissive: 0x320704, emissiveIntensity: .5, roughness: .4 }), -.03, .11, 0);
-      const b2 = box(.03, .1, .11, mat({ color: 0xd0a04a, emissive: 0x2a1a02, emissiveIntensity: .4, roughness: .4 }), -.03, -.11, 0);
+      const b1 = box(.03, .1, .11, mat({ color: 0xa8352c, emissive: 0x320704, emissiveIntensity: .5, roughness: .4 }), faceX * .04, .11, 0);
+      const b2 = box(.03, .1, .11, mat({ color: 0xd0a04a, emissive: 0x2a1a02, emissiveIntensity: .4, roughness: .4 }), faceX * .04, -.11, 0);
       panel.add(b1, b2);
-      panel.position.set(side * (OFFICE.w - .17), 1.34, OFFICE.doorZ + .92);
-      panel.rotation.y = -side * Math.PI / 2;
+      panel.position.set(doorX + faceX * .17, 1.34, OFFICE.doorZ + .92);
       this.office.add(panel);
       this.doors = this.doors || {};
-      this.doors[key] = { shutter, group: sg, strip, b1, b2 };
+      this.doors[key] = { shutter, group: sg, strip, stripGlow, b1, b2, frame };
 
       // hall
       this._buildHall(side, key, floorM, wall, wains, trim, ceil);
@@ -427,27 +460,30 @@ export class World {
     this.scene.add(g);
     this.doors[key].hall = g;
 
-    // door light source
-    const light = new THREE.SpotLight(0xffb56a, 0, 9, Math.PI / 4.5, .55, 1.5);
-    light.position.set(side * (OFFICE.w + .35), 2.45, OFFICE.doorZ);
-    light.target.position.set(side * (OFFICE.w + 3.4), .3, OFFICE.doorZ);
+    // door light source — mounted just inside the office, aimed into the hall
+    const light = new THREE.SpotLight(0xffb56a, 0, 9, Math.PI / 4.2, .5, 1.5);
+    light.position.set(side * (OFFICE.w + .22), 2.5, OFFICE.doorZ);
+    light.target.position.set(side * (OFFICE.w + 3.4), .35, OFFICE.doorZ - .1);
     this.scene.add(light, light.target);
     light.castShadow = false;
     this.doors[key].light = light;
     this.doors[key].lightTarget = light.target;
 
-    // fake volumetric cone
+    // Low fill on the office side so whoever is in the doorway reads clearly
+    // when the hall light is switched on.
+    const reveal = new THREE.PointLight(0xffc08a, 0, 3.8, 2);
+    reveal.position.set(side * (OFFICE.w - .3), 1.78, OFFICE.doorZ + .52);
+    this.scene.add(reveal);
+    this.doors[key].revealLight = reveal;
+
+    // fake volumetric cone — apex at the door, spreading down the hall
     const coneGeo = new THREE.ConeGeometry(1.5, 3.4, 18, 1, true);
     const coneMat = new THREE.MeshBasicMaterial({
       color: 0xffb060, transparent: true, opacity: 0, blending: THREE.AdditiveBlending,
       side: THREE.DoubleSide, depthWrite: false
     });
     const vol = new THREE.Mesh(coneGeo, coneMat);
-    vol.position.set(side * (OFFICE.w + 1.9), 1.8, OFFICE.doorZ);
-    vol.rotation.z = side * Math.PI / 2;
-    vol.rotation.x = 0;
-    // orient cone to point along hall (from ceiling to floor): rotate so tip up
-    vol.rotation.set(0, 0, side < 0 ? Math.PI / 2 : -Math.PI / 2);
+    vol.rotation.set(0, 0, side * Math.PI / 2);
     vol.position.set(side * (OFFICE.w + 1.7), 1.55, OFFICE.doorZ);
     g.add(vol);
     this.doors[key].volume = vol;
@@ -458,8 +494,8 @@ export class World {
     this.officeLight = new THREE.PointLight(0xffd0a0, 9.5, 13, 1.25);
     this.officeLight.position.set(0, 2.66, .3);
     this.officeLight.castShadow = true;
-    this.officeLight.shadow.mapSize.set(1024, 1024);
-    this.officeLight.shadow.bias = -0.0018;
+    this.officeLight.shadow.mapSize.set(2048, 2048);
+    this.officeLight.shadow.bias = -0.0016;
     this.officeLight.shadow.camera.near = .2;
     this.officeLight.shadow.camera.far = 14;
     this.scene.add(this.officeLight);
@@ -504,8 +540,8 @@ export class World {
   _buildDesk() {
     const g = new THREE.Group();
     const wood = new THREE.MeshStandardMaterial({
-      map: deskTexture(), bumpMap: bumpTexture('wood'), bumpScale: .018,
-      roughness: .5, metalness: .06, envMapIntensity: .34
+      map: deskTexture(), normalMap: normalTexture('wood', 2.0), normalScale: new THREE.Vector2(.7, .7),
+      roughness: .48, metalness: .07, envMapIntensity: .36
     });
     const dark = mat({ color: 0x241b13, roughness: .8 });
     const metal = mat({ color: 0x36332d, roughness: .45, metalness: .7 });
@@ -920,7 +956,7 @@ export class World {
     this.scene.add(g);
 
     const floorM = new THREE.MeshStandardMaterial({
-      map: floorTexture(), bumpMap: bumpTexture('tile'), bumpScale: .02,
+      map: floorTexture(), normalMap: normalTexture('tile', 1.8), normalScale: new THREE.Vector2(.9, .9),
       roughness: .26, metalness: .24, envMapIntensity: .8
     });
     const floor = plane(17, 15, floorM, 0, -0.001, 2.2, -Math.PI / 2);
@@ -928,7 +964,7 @@ export class World {
 
     // back curtain wall (behind the band)
     const curtainTex = this._menuCurtain();
-    const curtain = plane(14, 7, new THREE.MeshStandardMaterial({ map: curtainTex, bumpMap: bumpTexture('fabric'), bumpScale: .03, roughness: .95 }), 0, 3.5, -7.2);
+    const curtain = plane(14, 7, new THREE.MeshStandardMaterial({ map: curtainTex, normalMap: normalTexture('fabric', 2.2), normalScale: new THREE.Vector2(.8, .8), roughness: .95 }), 0, 3.5, -7.2);
     g.add(curtain);
     // red valance
     const valMat = mat({ color: 0x5d1512, roughness: .8 });
@@ -941,10 +977,10 @@ export class World {
     }
     // side walls
     for (const s of [-1, 1]) {
-      const w = plane(14, 6.6, new THREE.MeshStandardMaterial({ map: wallTexture(), bumpMap: bumpTexture('plaster'), bumpScale: .012, roughness: .95 }), s * 8.5, 3.3, .0, 0, s * Math.PI / 2);
+      const w = plane(14, 6.6, new THREE.MeshStandardMaterial({ map: wallTexture(), normalMap: normalTexture('plaster', 2.2), normalScale: new THREE.Vector2(.7, .7), roughness: .95 }), s * 8.5, 3.3, .0, 0, s * Math.PI / 2);
       g.add(w);
     }
-    g.add(plane(17, 15, new THREE.MeshStandardMaterial({ map: ceilingTexture(), bumpMap: bumpTexture('tile'), bumpScale: .01, roughness: 1 }), 0, 6.6, 2.2, Math.PI / 2));
+    g.add(plane(17, 15, new THREE.MeshStandardMaterial({ map: ceilingTexture(), normalMap: normalTexture('tile', 1.4), normalScale: new THREE.Vector2(.8, .8), roughness: 1 }), 0, 6.6, 2.2, Math.PI / 2));
     // neon marquee
     const signTex = neonSignTexture();
     const sign = plane(7.4, 1.6, new THREE.MeshBasicMaterial({ map: signTex, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }), 0, 6.18, -7.1);
@@ -1113,11 +1149,15 @@ export class World {
 
   ensureOfficeCharacters() {
     if (this._officeChars) return;
+    // Stand just beyond the threshold, angled toward the player's chair so a
+    // lit doorway frames the face instead of a sliver of shoulder.
+    const x = OFFICE.w + .5;
+    const z = OFFICE.doorZ - .34;
     this._officeChars = {
-      bonnie: this.createOfficeCharacter('bonnie', -3.95, OFFICE.doorZ, Math.PI / 2, 1.02),
-      chica: this.createOfficeCharacter('chica', 3.95, OFFICE.doorZ, -Math.PI / 2, 1),
-      freddy: this.createOfficeCharacter('freddy', 5.45, OFFICE.doorZ, -Math.PI / 2, 1.04),
-      foxy: this.createOfficeCharacter('foxy', -6.9, OFFICE.doorZ, Math.PI / 2, 1.02)
+      bonnie: this.createOfficeCharacter('bonnie', -x, z, .7, .98),
+      chica: this.createOfficeCharacter('chica', x, z, -.7, .98),
+      freddy: this.createOfficeCharacter('freddy', x, z, -.7, .96),
+      foxy: this.createOfficeCharacter('foxy', -x, z, .7, .98)
     };
     for (const k in this._officeChars) {
       this._officeChars[k].eyeMat.emissiveIntensity = 1.4;
@@ -1138,8 +1178,10 @@ export class World {
     const f = this._officeChars.foxy;
     f.group.visible = active;
     if (active) {
-      f.group.position.x = -7.2 + prog * 3.2;
-      f.group.position.z = OFFICE.doorZ;
+      const p = Math.min(1, Math.max(0, prog));
+      f.group.position.x = -7.4 + p * 4.3;
+      f.group.position.z = OFFICE.doorZ - .34;
+      f.group.rotation.y = Math.PI / 2 + (.7 - Math.PI / 2) * Math.min(1, p * 1.35);
       f.head.rotation.y = 0;
     }
   }
@@ -1282,6 +1324,9 @@ export class World {
         d.shutter.position.y = OFFICE.doorH / 2 + 2.4 - closed * 2.4;
         d.strip.material.color.setHex(closed > .1 ? 0xff3b26 : 0x52140f);
         d.strip.material.opacity = closed > .1 ? .95 : .55;
+        if (d.stripGlow) {
+          d.stripGlow.material.opacity = this.blackedOut ? 0 : (closed > .1 ? .5 + Math.sin(t * 7) * .08 : .025);
+        }
         d.b1.material.emissive.setHex(closed > .5 ? 0x8a2018 : 0x320704);
         d.b1.material.emissiveIntensity = closed > .5 ? 1.1 : .4;
 
@@ -1289,6 +1334,7 @@ export class World {
         const lt = this.lightTarget[side];
         this.light[side] += (lt - this.light[side]) * Math.min(1, dt * 9);
         d.light.intensity = this.light[side] * (this.blackedOut ? 0 : 12);
+        if (d.revealLight) d.revealLight.intensity = this.light[side] * (this.blackedOut ? 0 : 3.2);
         d.volumeBase.opacity = this.light[side] * .045 * (this.blackedOut ? 0 : 1);
         if (this.light[side] > .02) d.light.color.setHex(0xffb56a);
       }
@@ -1465,17 +1511,17 @@ export function makeAnimatronic(type, scare = false) {
     foxy: { main: 0x8c3323, dark: 0x542015, muzzle: 0xb26743, accent: 0x1c1712, eye: 0xffcf6a }
   };
   const p = palettes[type] || palettes.freddy;
-  const suitBump = bumpTexture('fabric');
+  const suitNormal = normalTexture('fabric', 1.7);
   const mainMat = new THREE.MeshStandardMaterial({
-    map: suitTexture(p.main), bumpMap: suitBump, bumpScale: .014,
+    map: suitTexture(p.main), normalMap: suitNormal, normalScale: new THREE.Vector2(.55, .55),
     color: 0xffffff, roughness: .8, metalness: .03, envMapIntensity: .3
   });
   const darkMat = new THREE.MeshStandardMaterial({
-    map: suitTexture(p.dark), bumpMap: suitBump, bumpScale: .012,
+    map: suitTexture(p.dark), normalMap: suitNormal, normalScale: new THREE.Vector2(.45, .45),
     color: 0xffffff, roughness: .86, metalness: .02, envMapIntensity: .22
   });
   const muzzleMat = new THREE.MeshStandardMaterial({
-    map: suitTexture(p.muzzle), bumpMap: suitBump, bumpScale: .016,
+    map: suitTexture(p.muzzle), normalMap: suitNormal, normalScale: new THREE.Vector2(.6, .6),
     color: 0xffffff, roughness: .74, metalness: .02, envMapIntensity: .28
   });
   const accentMat = new THREE.MeshStandardMaterial({ color: p.accent, roughness: .62, metalness: .12, envMapIntensity: .3 });

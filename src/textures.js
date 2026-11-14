@@ -17,7 +17,7 @@ export function finish(c, repeatX = 1, repeatY = 1) {
   t.colorSpace = THREE.SRGBColorSpace;
   t.wrapS = t.wrapT = THREE.RepeatWrapping;
   t.repeat.set(repeatX, repeatY);
-  t.anisotropy = 4;
+  t.anisotropy = 8;
   return t;
 }
 function grime(ctx, w, h, amount = 40, dark = 'rgba(35,28,20,') {
@@ -759,10 +759,120 @@ export function bumpTexture(kind = 'plaster') {
   }
   const t = new THREE.CanvasTexture(c);
   t.wrapS = t.wrapT = THREE.RepeatWrapping;
-  t.anisotropy = 4;
+  t.anisotropy = 8;
   const reps = { tile: [4, 4], wood: [2, 2], metal: [1, 3], fabric: [2, 2], plaster: [2, 2] };
   const r = reps[kind] || [2, 2];
   t.repeat.set(r[0], r[1]);
   bumpCache.set(kind, t);
+  return t;
+}
+
+/* Derive a tangent-space normal map from a height source. This is what makes
+   the plaster, wood and steel catch the light on a high-DPI phone screen. */
+function normalFromSource(src, strength, repeat) {
+  const w = src.width, h = src.height;
+  const read = canvas(w, h), rx = read.getContext('2d');
+  rx.drawImage(src, 0, 0);
+  const data = rx.getImageData(0, 0, w, h).data;
+  const out = canvas(w, h), ox = out.getContext('2d');
+  const img = ox.createImageData(w, h);
+  const at = (xx, yy) => data[((((yy + h) % h) * w + ((xx + w) % w)) * 4)] / 255;
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const dx = (at(x + 1, y) - at(x - 1, y)) * strength;
+      const dy = (at(x, y + 1) - at(x, y - 1)) * strength;
+      let nx = -dx, ny = -dy, nz = 1;
+      const l = Math.hypot(nx, ny, nz) || 1;
+      nx /= l; ny /= l; nz /= l;
+      const i = (y * w + x) * 4;
+      img.data[i] = (nx * .5 + .5) * 255;
+      img.data[i + 1] = (ny * .5 + .5) * 255;
+      img.data[i + 2] = (nz * .5 + .5) * 255;
+      img.data[i + 3] = 255;
+    }
+  }
+  ox.putImageData(img, 0, 0);
+  const t = new THREE.CanvasTexture(out);
+  t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  if (repeat) t.repeat.copy(repeat);
+  t.anisotropy = 8;
+  t.colorSpace = THREE.NoColorSpace;
+  return t;
+}
+const normalCache = new Map();
+export function normalTexture(kind = 'plaster', strength = 2.2) {
+  const key = kind + '|' + strength;
+  if (normalCache.has(key)) return normalCache.get(key);
+  const bump = bumpTexture(kind);
+  const t = normalFromSource(bump.image, strength, bump.repeat);
+  normalCache.set(key, t);
+  return t;
+}
+
+/* Heavy rolling steel shutter — ribs, rivets, paint loss and a stencil. */
+let shutterCache = null;
+export function shutterTexture() {
+  if (shutterCache) return shutterCache;
+  const w = 512, h = 1024, c = canvas(w, h), x = c.getContext('2d');
+  const g = x.createLinearGradient(0, 0, w, 0);
+  g.addColorStop(0, '#3a3833'); g.addColorStop(.18, '#625e54');
+  g.addColorStop(.5, '#7a7568'); g.addColorStop(.82, '#57534a'); g.addColorStop(1, '#302e29');
+  x.fillStyle = g; x.fillRect(0, 0, w, h);
+  // deep horizontal slats
+  for (let y = 0; y < h; y += 42) {
+    const sg = x.createLinearGradient(0, y, 0, y + 42);
+    sg.addColorStop(0, 'rgba(255,245,225,.18)');
+    sg.addColorStop(.16, 'rgba(255,245,225,.05)');
+    sg.addColorStop(.5, 'rgba(0,0,0,.02)');
+    sg.addColorStop(.84, 'rgba(0,0,0,.38)');
+    sg.addColorStop(1, 'rgba(0,0,0,.05)');
+    x.fillStyle = sg; x.fillRect(0, y, w, 42);
+    x.fillStyle = 'rgba(0,0,0,.28)'; x.fillRect(0, y + 41, w, 2);
+  }
+  // rivet columns
+  for (const rx of [24, w - 24]) {
+    for (let ry = 22; ry < h; ry += 84) {
+      const rg = x.createRadialGradient(rx - 2, ry - 2, 1, rx, ry, 7);
+      rg.addColorStop(0, 'rgba(255,250,235,.5)'); rg.addColorStop(.5, 'rgba(120,116,105,.6)'); rg.addColorStop(1, 'rgba(0,0,0,.5)');
+      x.fillStyle = rg; x.beginPath(); x.arc(rx, ry, 6, 0, 7); x.fill();
+    }
+  }
+  // hazard band + stencil
+  x.save();
+  x.translate(0, h - 150);
+  x.fillStyle = '#b9922a'; x.fillRect(0, 0, w, 64);
+  x.strokeStyle = '#171410'; x.lineWidth = 22;
+  for (let i = -h; i < w + h; i += 58) { x.beginPath(); x.moveTo(i, 64); x.lineTo(i + 64, 0); x.stroke(); }
+  x.restore();
+  x.save();
+  x.translate(w / 2, h * .46);
+  x.rotate(-Math.PI / 2);
+  x.textAlign = 'center';
+  x.fillStyle = 'rgba(232,220,190,.34)';
+  x.font = 'bold 40px "Arial Narrow", Arial, sans-serif';
+  x.fillText('SECURITY DOOR', 0, 0);
+  x.font = 'bold 20px Arial, sans-serif';
+  x.fillStyle = 'rgba(190,60,44,.4)';
+  x.fillText('KEEP CLOSED DURING SHOW', 0, 32);
+  x.restore();
+  scratches(x, w, h, 130, 'rgba(255,248,230,.12)');
+  grime(x, w, h, 70, 'rgba(30,20,12,');
+  // rust blooms
+  for (let i = 0; i < 26; i++) {
+    const rx = rand() * w, ry = rand() * h, r = 6 + rand() * 34;
+    const rg = x.createRadialGradient(rx, ry, 0, rx, ry, r);
+    rg.addColorStop(0, `rgba(112,54,26,${.12 + rand() * .16})`);
+    rg.addColorStop(1, 'rgba(90,40,20,0)');
+    x.fillStyle = rg; x.fillRect(rx - r, ry - r, r * 2, r * 2);
+  }
+  shutterCache = finish(c, 1, 1);
+  return shutterCache;
+}
+
+const shutterNormalCache = new Map();
+export function shutterNormalTexture(strength = 2.6) {
+  if (shutterNormalCache.has(strength)) return shutterNormalCache.get(strength);
+  const t = normalFromSource(shutterTexture().image, strength, shutterTexture().repeat);
+  shutterNormalCache.set(strength, t);
   return t;
 }
