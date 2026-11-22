@@ -763,13 +763,13 @@ function tick(now) {
     const fps = fpsFrames / fpsAcc;
     if (fps < 46 && quality > .62) {
       quality = Math.max(.62, quality - .11);
-      world.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.75) * quality);
+      world.setPixelRatio(Math.min(window.devicePixelRatio || 1, world.pixelRatioCap) * quality);
       goodWindows = 0;
     } else if (fps > 57 && quality < 1) {
       goodWindows++;
       if (goodWindows >= 3) {
         quality = Math.min(1, quality + .08);
-        world.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.75) * quality);
+        world.setPixelRatio(Math.min(window.devicePixelRatio || 1, world.pixelRatioCap) * quality);
         goodWindows = 0;
       }
     }

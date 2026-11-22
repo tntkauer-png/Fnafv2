@@ -65,7 +65,9 @@ export class World {
       antialias: true, alpha: false, powerPreference: 'high-performance',
       stencil: false, preserveDrawingBuffer: false
     });
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    const mobile = window.matchMedia?.('(max-width: 760px), (pointer: coarse)').matches;
+    this.pixelRatioCap = mobile ? 1.5 : 2;
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, this.pixelRatioCap));
     this.renderer.setSize(window.innerWidth, window.innerHeight);
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -297,7 +299,7 @@ export class World {
       const sg = new THREE.Group();
       sg.position.set(doorX, 0, OFFICE.doorZ);
       this.office.add(sg);
-      const shutter = box(.09, OFFICE.doorH + .06, OFFICE.doorW + .02, shutterM, faceX * .05, OFFICE.doorH / 2 + 2.4, 0);
+      const shutter = box(.09, OFFICE.doorH, OFFICE.doorW, shutterM, faceX * .05, OFFICE.doorH / 2, 0);
       shutter.castShadow = true; shutter.receiveShadow = true;
       sg.add(shutter);
       for (const zs of [-1, 1]) {
@@ -327,7 +329,7 @@ export class World {
       panel.position.set(doorX + faceX * .17, 1.34, OFFICE.doorZ + .92);
       this.office.add(panel);
       this.doors = this.doors || {};
-      this.doors[key] = { shutter, group: sg, strip, stripGlow, b1, b2, frame };
+      this.doors[key] = { shutter, shutterHeight: OFFICE.doorH, group: sg, strip, stripGlow, b1, b2, frame };
 
       // hall
       this._buildHall(side, key, floorM, wall, wains, trim, ceil);
@@ -494,7 +496,9 @@ export class World {
     this.officeLight = new THREE.PointLight(0xffd0a0, 9.5, 13, 1.25);
     this.officeLight.position.set(0, 2.66, .3);
     this.officeLight.castShadow = true;
-    this.officeLight.shadow.mapSize.set(2048, 2048);
+    const mobile = window.matchMedia?.('(max-width: 760px), (pointer: coarse)').matches;
+    const shadowResolution = mobile ? 1024 : 2048;
+    this.officeLight.shadow.mapSize.set(shadowResolution, shadowResolution);
     this.officeLight.shadow.bias = -0.0016;
     this.officeLight.shadow.camera.near = .2;
     this.officeLight.shadow.camera.far = 14;
@@ -1321,7 +1325,10 @@ export class World {
         }
         const d = this.doors[side];
         const closed = this.door[side];
-        d.shutter.position.y = OFFICE.doorH / 2 + 2.4 - closed * 2.4;
+        // Retract the panel into the lintel instead of translating it through
+        // the ceiling/wall; at every point it stays inside the door opening.
+        d.shutter.scale.y = Math.max(.001, closed);
+        d.shutter.position.y = OFFICE.doorH - d.shutterHeight * closed / 2;
         d.strip.material.color.setHex(closed > .1 ? 0xff3b26 : 0x52140f);
         d.strip.material.opacity = closed > .1 ? .95 : .55;
         if (d.stripGlow) {

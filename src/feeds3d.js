@@ -120,7 +120,8 @@ export class FeedRenderer {
       this.renderer = new THREE.WebGLRenderer({
         canvas, antialias: true, powerPreference: 'high-performance', stencil: false
       });
-      this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.75));
+      const mobile = window.matchMedia?.('(max-width: 760px), (pointer: coarse)').matches;
+      this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, mobile ? 1.25 : 1.75));
       this.renderer.setSize(W, H, false);
       this.renderer.outputColorSpace = THREE.SRGBColorSpace;
       this.renderer.toneMapping = THREE.ACESFilmicToneMapping;

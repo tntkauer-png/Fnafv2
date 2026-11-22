@@ -53,7 +53,7 @@ export class Game {
     this.stats = null;
     this.lureCd = 0;
     this.lureCooldown = 26;
-    this.lureCost = 4.5;
+    this.lureCost = 2.0;
     this.lureT = 0;
     this._warned = { twenty: false, ten: false };
   }
@@ -321,7 +321,7 @@ export class Game {
   }
 
   _updatePower(dt) {
-    const base = .135 * this.levels.drain;
+    const base = .05 * this.levels.drain;
     let drain = base;
     if (this.doors.left) drain += .185;
     if (this.doors.right) drain += .185;
