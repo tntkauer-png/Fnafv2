@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#070a0d">
+  <meta name="description" content="A tense, atmospheric night-shift survival horror game. Keep watch until 6 AM.">
+  <title>THE LAST WATCH — Night Shift</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700;800&family=DM+Mono:wght@400;500&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <main class="game-shell" id="gameShell">
+    <canvas id="scene" aria-label="A first-person view from a dark security office"></canvas>
+    <div class="vignette" aria-hidden="true"></div>
+    <header class="topbar">
+      <div class="brand"><span class="brand-mark">LW</span><span>LAST<span class="brand-light">WATCH</span><small>FAIRWATER • SECURITY</small></span></div>
+      <div class="night-chip"><i></i> NIGHT SHIFT <b>01</b></div>
+      <div class="readouts"><div class="clock"><small>LOCAL TIME</small><strong id="clock">12 AM</strong></div><div class="power"><small>BACKUP POWER</small><strong id="power">100<span>%</span></strong></div></div>
+    </header>
+    <div class="system-status" id="systemStatus"><span class="status-dot"></span><span id="statusText">SYSTEMS NOMINAL</span></div>
+    <section class="interaction-bar" aria-label="Security controls">
+      <div class="side-controls left-controls">
+        <button class="control light-control" id="leftLight" aria-label="Toggle west hall light"><span class="control-icon bulb-icon">◉</span><span class="control-label">HALL LIGHT</span><span class="control-state" id="leftLightState">OFF</span></button>
+        <button class="control door-control" id="leftDoor" aria-label="Toggle west security door"><span class="control-icon door-icon">▥</span><span class="control-label">WEST DOOR</span><span class="control-state" id="leftDoorState">OPEN</span></button>
+      </div>
+      <button class="monitor-toggle" id="monitorToggle" aria-label="Open security cameras"><span class="monitor-glyph">▤</span><span>CAMERAS</span><kbd>SPACE</kbd></button>
+      <div class="side-controls right-controls">
+        <button class="control door-control" id="rightDoor" aria-label="Toggle east security door"><span class="control-icon door-icon">▥</span><span class="control-label">EAST DOOR</span><span class="control-state" id="rightDoorState">OPEN</span></button>
+        <button class="control light-control" id="rightLight" aria-label="Toggle east hall light"><span class="control-icon bulb-icon">◉</span><span class="control-label">HALL LIGHT</span><span class="control-state" id="rightLightState">OFF</span></button>
+      </div>
+    </section>
+    <div class="usage"><span>LOAD</span><div class="usage-bars" id="usageBars"><i></i><i></i><i></i><i></i><i></i></div></div>
+    <div class="hint" id="hint">KEEP THE LIGHTS LOW. LISTEN FOR MOVEMENT.</div>
+    <section class="camera-panel" id="cameraPanel" aria-label="Security camera feed">
+      <div class="cam-topline"><div><span class="rec-dot"></span> LIVE FEED <b id="camName">CAM 01 — ENTRY</b></div><span class="cam-signal">SIGNAL <b>▮▮▮▯</b></span></div>
+      <div class="cam-view"><canvas id="camScene" aria-label="Grainy security camera image"></canvas><div class="cam-scanlines"></div><div class="cam-stamp" id="camStamp">FAIRWATER / 12:00:00 AM</div><div class="cam-warning" id="camWarning">NO SIGNAL</div></div>
+      <div class="cam-choices" id="camChoices">
+        <button class="cam-choice active" data-cam="0"><b>01</b> ENTRY</button><button class="cam-choice" data-cam="1"><b>02</b> DINING</button><button class="cam-choice" data-cam="2"><b>03</b> WEST HALL</button><button class="cam-choice" data-cam="3"><b>04</b> EAST HALL</button>
+      </div>
+      <div class="cam-footer"><span>CAMERA NETWORK <b>CONNECTED</b></span><span>LOW-LIGHT MODE <b>ACTIVE</b></span></div>
+    </section>
+    <div class="modal" id="introModal">
+      <div class="modal-card intro-card"><div class="eyebrow"><span></span> FAIRWATER FAMILY ARCADE • 1997</div><div class="title-lockup"><h1>THE LAST<br><em>WATCH</em></h1><div class="title-eye">◉</div></div><p class="tagline">The building is empty.<br><strong>It just doesn't know that yet.</strong></p><div class="rule"></div><p class="intro-copy">One shift. Midnight to 6 AM. The backup generator is old, and something is moving through the halls. Watch the cameras. Use the doors only when you have to.</p><div class="briefing"><span><b>01</b> Watch both halls</span><span><b>02</b> Conserve your power</span><span><b>03</b> Make it to 6 AM</span></div><button class="primary-button" id="startButton">BEGIN NIGHT SHIFT <span>→</span></button><div class="keyboard-note">KEYBOARD: A / D lights · Q / E doors · SPACE cameras</div></div>
+    </div>
+    <div class="modal hidden" id="endModal"><div class="modal-card end-card"><div class="eyebrow" id="endEyebrow"><span></span> SHIFT REPORT</div><h2 id="endTitle">6 AM</h2><p id="endText"></p><button class="primary-button" id="restartButton">TRY AGAIN <span>↻</span></button></div></div>
+    <div class="toast" id="toast" aria-live="polite"></div>
+    <footer class="footer"><span>FAIRWATER SECURITY SYSTEMS <b>v.1.9.97</b></span><span>DON'T LOOK AWAY</span></footer>
+  </main>
+  <script src="game.js"></script>
+</body>
+</html>
