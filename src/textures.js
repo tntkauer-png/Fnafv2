@@ -1,11 +1,22 @@
 import * as THREE from '../vendor/three.module.min.js';
 
 let seed = 1337;
+let maxAnisotropy = 8;
+let textureScale = 1;
 export function rand() {
   seed = (seed * 16807) % 2147483647;
   return (seed - 1) / 2147483646;
 }
 export function resetSeed(s = 1337) { seed = s; }
+/* Called once the renderer exists so floor/wall detail stays sharp at the
+   grazing angles you get from the office chair. */
+export function setMaxAnisotropy(v) {
+  maxAnisotropy = Math.max(1, Math.min(16, Math.round(v) || 8));
+}
+/* High-tier devices get 1024px surface textures; others keep 512px. */
+export function setTextureScale(v) {
+  textureScale = Math.max(1, Math.min(2, Math.round(v) || 1));
+}
 
 function canvas(w, h) {
   const c = document.createElement('canvas');
@@ -17,7 +28,7 @@ export function finish(c, repeatX = 1, repeatY = 1) {
   t.colorSpace = THREE.SRGBColorSpace;
   t.wrapS = t.wrapT = THREE.RepeatWrapping;
   t.repeat.set(repeatX, repeatY);
-  t.anisotropy = 8;
+  t.anisotropy = maxAnisotropy;
   return t;
 }
 function grime(ctx, w, h, amount = 40, dark = 'rgba(35,28,20,') {
@@ -47,22 +58,65 @@ function scratches(ctx, w, h, n = 24, color = 'rgba(255,255,255,.08)') {
 }
 
 /* ---------------------------------------------------------- walls */
+/* The office and every CCTV room share the same surface textures, so build
+   each one once and reuse it — otherwise nine rooms would upload nine copies
+   of the wallpaper and floor to the GPU. */
+let wallCache = null, wainscotCache = null, ceilingCache = null, floorCache = null;
 export function wallTexture() {
-  const w = 512, h = 512, c = canvas(w, h), x = c.getContext('2d');
+  if (wallCache) return wallCache;
+  const S = textureScale;
+  const w = 512, h = 512, c = canvas(w * S, h * S), x = c.getContext('2d');
+  x.scale(S, S);
   x.fillStyle = '#b3a687';
   x.fillRect(0, 0, w, h);
+  // soft vertical tone bands
+  const baseGrad = x.createLinearGradient(0, 0, w, 0);
+  baseGrad.addColorStop(0, 'rgba(96,80,56,.10)');
+  baseGrad.addColorStop(.5, 'rgba(255,248,222,.06)');
+  baseGrad.addColorStop(1, 'rgba(96,80,56,.10)');
+  x.fillStyle = baseGrad; x.fillRect(0, 0, w, h);
   // vertical wallpaper stripes
   for (let i = 0; i < w; i += 32) {
-    x.fillStyle = i % 64 === 0 ? 'rgba(120,104,76,.10)' : 'rgba(255,246,218,.05)';
+    x.fillStyle = i % 64 === 0 ? 'rgba(120,104,76,.12)' : 'rgba(255,246,218,.05)';
     x.fillRect(i, 0, 16, h);
+    x.fillStyle = 'rgba(255,246,218,.10)';
+    x.fillRect(i + 2, 0, 1, h);
+  }
+  // faint damask diamonds — reads as a period pattern up close without
+  // turning into visual noise at a distance
+  x.save();
+  x.strokeStyle = 'rgba(92,76,50,.13)';
+  x.lineWidth = 1.4;
+  for (let gy = 32; gy < h; gy += 64) {
+    for (let gx = 16; gx < w; gx += 64) {
+      x.beginPath();
+      x.moveTo(gx, gy - 9); x.lineTo(gx + 9, gy);
+      x.lineTo(gx, gy + 9); x.lineTo(gx - 9, gy);
+      x.closePath(); x.stroke();
+      x.fillStyle = 'rgba(92,76,50,.10)';
+      x.fillRect(gx - 1, gy - 1, 2, 2);
+    }
+  }
+  x.restore();
+  // panel seams
+  for (let i = 0; i < w; i += 256) {
+    x.fillStyle = 'rgba(54,42,26,.18)'; x.fillRect(i, 0, 2, h);
+    x.fillStyle = 'rgba(255,248,224,.07)'; x.fillRect(i + 2, 0, 1, h);
   }
   // fine noise
-  const id = x.getImageData(0, 0, w, h);
+  const id = x.getImageData(0, 0, w * S, h * S);
   for (let i = 0; i < id.data.length; i += 4) {
-    const n = (rand() - .5) * 16;
+    const n = (rand() - .5) * 20;
     id.data[i] += n; id.data[i + 1] += n; id.data[i + 2] += n;
   }
   x.putImageData(id, 0, 0);
+  // dirt settles into the top and bottom of the wall
+  const vgrad = x.createLinearGradient(0, 0, 0, h);
+  vgrad.addColorStop(0, 'rgba(38,28,16,.16)');
+  vgrad.addColorStop(.18, 'rgba(38,28,16,0)');
+  vgrad.addColorStop(.82, 'rgba(38,28,16,0)');
+  vgrad.addColorStop(1, 'rgba(30,22,12,.22)');
+  x.fillStyle = vgrad; x.fillRect(0, 0, w, h);
   // water damage streaks from top
   for (let i = 0; i < 7; i++) {
     const sx = rand() * w, sw = 10 + rand() * 34;
@@ -75,11 +129,15 @@ export function wallTexture() {
   }
   grime(x, w, h, 55, 'rgba(40,30,18,');
   scratches(x, w, h, 30, 'rgba(255,250,230,.06)');
-  return finish(c, 2, 2);
+  wallCache = finish(c, 2, 2);
+  return wallCache;
 }
 
 export function wainscotTexture() {
-  const w = 512, h = 256, c = canvas(w, h), x = c.getContext('2d');
+  if (wainscotCache) return wainscotCache;
+  const S = textureScale;
+  const w = 512, h = 256, c = canvas(w * S, h * S), x = c.getContext('2d');
+  x.scale(S, S);
   x.fillStyle = '#4a3a2b';
   x.fillRect(0, 0, w, h);
   const g = x.createLinearGradient(0, 0, 0, h);
@@ -97,11 +155,15 @@ export function wainscotTexture() {
   x.strokeRect(2, 2, w - 4, h - 4);
   grime(x, w, h, 30, 'rgba(10,6,3,');
   scratches(x, w, h, 40);
-  return finish(c, 3, 1);
+  wainscotCache = finish(c, 3, 1);
+  return wainscotCache;
 }
 
 export function ceilingTexture() {
-  const w = 256, h = 256, c = canvas(w, h), x = c.getContext('2d');
+  if (ceilingCache) return ceilingCache;
+  const S = textureScale;
+  const w = 256, h = 256, c = canvas(w * S, h * S), x = c.getContext('2d');
+  x.scale(S, S);
   x.fillStyle = '#26231d'; x.fillRect(0, 0, w, h);
   for (let i = 0; i < 16; i++) {
     x.fillStyle = `rgba(${120 + rand() * 30},${112 + rand() * 30},${96 + rand() * 20},${.18 + rand() * .22})`;
@@ -111,11 +173,15 @@ export function ceilingTexture() {
   }
   x.strokeStyle = 'rgba(0,0,0,.25)'; x.lineWidth = 2;
   for (let i = 0; i < 8; i++) { x.beginPath(); x.moveTo(0, i * 32); x.lineTo(w, i * 32); x.stroke(); }
-  return finish(c, 4, 4);
+  ceilingCache = finish(c, 4, 4);
+  return ceilingCache;
 }
 
 export function floorTexture() {
-  const w = 512, h = 512, c = canvas(w, h), x = c.getContext('2d');
+  if (floorCache) return floorCache;
+  const S = textureScale;
+  const w = 512, h = 512, c = canvas(w * S, h * S), x = c.getContext('2d');
+  x.scale(S, S);
   const n = 4, s = w / n;
   for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) {
     const dark = (i + j) % 2 === 0;
@@ -144,7 +210,8 @@ export function floorTexture() {
     x.arc(px, py, 4 + rand() * 22, rand() * 7, rand() * 7);
     x.stroke();
   }
-  return finish(c, 4, 4);
+  floorCache = finish(c, 4, 4);
+  return floorCache;
 }
 
 /* ---------------------------------------------------------- posters */
@@ -694,7 +761,9 @@ export function concreteTexture() {
 const bumpCache = new Map();
 export function bumpTexture(kind = 'plaster') {
   if (bumpCache.has(kind)) return bumpCache.get(kind);
-  const w = 256, h = 256, c = canvas(w, h), x = c.getContext('2d');
+  const S = textureScale;
+  const w = 256, h = 256, c = canvas(w * S, h * S), x = c.getContext('2d');
+  x.scale(S, S);
   x.fillStyle = '#808080'; x.fillRect(0, 0, w, h);
   if (kind === 'plaster') {
     for (let i = 0; i < 900; i++) {
@@ -759,7 +828,7 @@ export function bumpTexture(kind = 'plaster') {
   }
   const t = new THREE.CanvasTexture(c);
   t.wrapS = t.wrapT = THREE.RepeatWrapping;
-  t.anisotropy = 8;
+  t.anisotropy = maxAnisotropy;
   const reps = { tile: [4, 4], wood: [2, 2], metal: [1, 3], fabric: [2, 2], plaster: [2, 2] };
   const r = reps[kind] || [2, 2];
   t.repeat.set(r[0], r[1]);
@@ -795,7 +864,7 @@ function normalFromSource(src, strength, repeat) {
   const t = new THREE.CanvasTexture(out);
   t.wrapS = t.wrapT = THREE.RepeatWrapping;
   if (repeat) t.repeat.copy(repeat);
-  t.anisotropy = 8;
+  t.anisotropy = maxAnisotropy;
   t.colorSpace = THREE.NoColorSpace;
   return t;
 }

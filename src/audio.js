@@ -200,6 +200,28 @@ export class AudioEngine {
       this._play(this._noise, { rate: .45, gain: .075, pan, filter: { type: 'bandpass', freq: 520 + i * 180, q: 1.2 }, when: i * .62 });
     }
   }
+  heartbeat(intensity = 1) {
+    if (!this.ctx) return;
+    const t0 = this.ctx.currentTime;
+    for (let i = 0; i < 2; i++) {
+      const o = this.ctx.createOscillator();
+      const g = this._gain(0);
+      o.type = 'sine';
+      const at = t0 + i * .17;
+      o.frequency.setValueAtTime(i ? 54 : 64, at);
+      o.frequency.exponentialRampToValueAtTime(i ? 34 : 40, at + .13);
+      g.gain.setValueAtTime(0, at);
+      g.gain.linearRampToValueAtTime(.14 * intensity, at + .012);
+      g.gain.exponentialRampToValueAtTime(.0001, at + .17);
+      o.connect(g).connect(this.master);
+      o.start(at); o.stop(at + .2);
+    }
+  }
+  whisper(pan = 0) {
+    if (!this.ctx) return;
+    this._play(this._noise, { rate: .55 + Math.random() * .2, gain: .045, pan, filter: { type: 'bandpass', freq: 900 + Math.random() * 700, q: 5 } });
+    this._play(this._noise, { rate: .42, gain: .035, pan: pan * -.6, filter: { type: 'bandpass', freq: 1500, q: 7 }, when: .22 });
+  }
   servo(pan = 0) {
     this._tone({ f: 700, f2: 1300, type: 'sawtooth', gain: .014, dur: .4, pan, filter: { type: 'bandpass', freq: 1200, q: 4 } });
   }

@@ -81,7 +81,7 @@ let promptTimer = null;
 let deathTimer = null;
 let winTimer = null;
 let fpsAcc = 0, fpsFrames = 0, quality = 1, goodWindows = 0;
-let lastHud = { time: '', power: -1, usage: -1, doors: '', lights: '', cam: null, low: null, lure: null, motion: '' };
+let lastHud = { time: '', power: -1, usage: -1, doors: '', lights: '', cam: null, low: null, critical: null, lure: null, motion: '' };
 let look = { yaw: 0, pitch: 0 };
 let drag = null;
 const keys = new Set();
@@ -181,6 +181,7 @@ function startMenu() {
   world.setMode('menu');
   game.state = 'idle';
   world.hideAllCharacters();
+  document.body.classList.remove('power-low', 'power-critical');
   updateNightCards();
   updateMuteUI();
 }
@@ -221,6 +222,7 @@ els.startNight.addEventListener('click', () => {
 function beginNightFlow(n) {
   selectedNight = n;
   clearTimeout(deathTimer); clearTimeout(winTimer);
+  document.body.classList.remove('power-low', 'power-critical');
   els.menu.classList.add('hidden');
   els.gameover.classList.add('hidden');
   els.win.classList.add('hidden');
@@ -240,7 +242,7 @@ function beginNightFlow(n) {
   world.setFoxyRunning(false);
   cornerCache.left = cornerCache.right = null;
   game.startNight(n);
-  lastHud = { time: '', power: -1, usage: -1, doors: '', lights: '', cam: null, low: null, lure: null, motion: '' };
+  lastHud = { time: '', power: -1, usage: -1, doors: '', lights: '', cam: null, low: null, critical: null, lure: null, motion: '' };
   els.lureBtn.classList.remove('firing');
   els.feedMotion.classList.add('hidden');
   look = { yaw: 0, pitch: -0.07 };
@@ -443,6 +445,7 @@ function handleDeath(by, reason) {
   if (state === 'dead' || state === 'won') return;
   state = 'dead';
   clearTimeout(hintTimer); clearTimeout(deathTimer);
+  document.body.classList.remove('power-low', 'power-critical');
   els.camOverlay.classList.add('hidden');
   els.camsBtn.classList.remove('active');
   els.viewPrompt.classList.add('hidden');
@@ -473,6 +476,7 @@ function handleWin(night) {
   if (state === 'won') return;
   state = 'won';
   clearTimeout(hintTimer); clearTimeout(winTimer);
+  document.body.classList.remove('power-low', 'power-critical');
   els.camOverlay.classList.add('hidden');
   els.camsBtn.classList.remove('active');
   els.viewPrompt.classList.add('hidden');
@@ -624,6 +628,11 @@ function updateHud(force = false) {
     document.body.classList.toggle('power-low', low && state === 'playing');
     lastHud.low = low;
   }
+  const critical = pct <= 10;
+  if (force || critical !== lastHud.critical) {
+    document.body.classList.toggle('power-critical', critical && state === 'playing');
+    lastHud.critical = critical;
+  }
   const usage = Math.round(game.usage * 2) / 2;
   if (force || usage !== lastHud.usage) {
     els.usageBars.forEach((b, i) => {
@@ -757,18 +766,19 @@ function tick(now) {
   // office render to keep the two WebGL contexts light on phones.
   world.renderPaused = game.camOpen && state === 'playing';
 
-  // adaptive quality for sustained mobile framerates
+  // adaptive quality for sustained mobile framerates. Keep a higher floor so
+  // a momentary load spike never turns the office into a blurry mess.
   fpsAcc += dt; fpsFrames++;
   if (fpsAcc > 2.2) {
     const fps = fpsFrames / fpsAcc;
-    if (fps < 46 && quality > .62) {
-      quality = Math.max(.62, quality - .11);
+    if (fps < 48 && quality > .72) {
+      quality = Math.max(.72, quality - .09);
       world.setPixelRatio(Math.min(window.devicePixelRatio || 1, world.pixelRatioCap) * quality);
       goodWindows = 0;
-    } else if (fps > 57 && quality < 1) {
+    } else if (fps > 56 && quality < 1) {
       goodWindows++;
-      if (goodWindows >= 3) {
-        quality = Math.min(1, quality + .08);
+      if (goodWindows >= 2) {
+        quality = Math.min(1, quality + .06);
         world.setPixelRatio(Math.min(window.devicePixelRatio || 1, world.pixelRatioCap) * quality);
         goodWindows = 0;
       }

@@ -3,6 +3,7 @@
    the tablet canvas by its own WebGL renderer. The scanlines / grain /
    vignette remain CSS layers on top. */
 import * as THREE from '../vendor/three.module.min.js';
+import { deviceProfile } from './device.js';
 import {
   wallTexture, wainscotTexture, ceilingTexture, floorTexture, posterTexture,
   metalTexture, ventTexture, signTexture, hazardTexture, concreteTexture,
@@ -10,7 +11,7 @@ import {
 } from './textures.js';
 import { makeAnimatronic } from './world.js';
 
-const W = 768, H = 432;
+let W = 1024, H = 576;
 
 const V3 = (x, y, z) => new THREE.Vector3(x, y, z);
 
@@ -117,15 +118,20 @@ export class FeedRenderer {
     this.rooms = {};
     this.flip = 0;
     try {
+      const p = deviceProfile();
+      if (p.tier === 'desktop') { W = 1440; H = 810; }
+      else if (p.tier === 'high') { W = 1280; H = 720; }
+      else { W = 1024; H = 576; }
       this.renderer = new THREE.WebGLRenderer({
         canvas, antialias: true, powerPreference: 'high-performance', stencil: false
       });
-      const mobile = window.matchMedia?.('(max-width: 760px), (pointer: coarse)').matches;
-      this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, mobile ? 1.25 : 1.75));
+      // The virtual feed already renders above the tablet's CSS size; a
+      // pixel ratio of 1 keeps the buffer from ballooning on dense phones.
+      this.renderer.setPixelRatio(1);
       this.renderer.setSize(W, H, false);
       this.renderer.outputColorSpace = THREE.SRGBColorSpace;
       this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-      this.renderer.toneMappingExposure = 1.0;
+      this.renderer.toneMappingExposure = 1.06;
       this.ok = true;
     } catch (e) { console.warn('cctv webgl unavailable', e); return; }
 
