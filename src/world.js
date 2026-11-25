@@ -1,10 +1,11 @@
 import * as THREE from '../vendor/three.module.min.js';
+import { deviceProfile } from './device.js';
 import {
   wallTexture, wainscotTexture, ceilingTexture, floorTexture, posterTexture,
   metalTexture, deskTexture, screenTexture, paperTexture, fanTexture, signTexture,
   ventTexture, suitTexture, lightPanelTexture, exitTexture, finish, rand, resetSeed,
   glowTexture, blobTexture, hazardTexture, concreteTexture, neonSignTexture,
-  normalTexture, shutterTexture, shutterNormalTexture
+  normalTexture, shutterTexture, shutterNormalTexture, setMaxAnisotropy, setTextureScale
 } from './textures.js';
 
 const OFFICE = { w: 2.6, front: -2.6, back: 3.5, h: 3.0, doorZ: -0.62, doorW: 1.28, doorH: 2.34 };
@@ -22,6 +23,16 @@ function plane(w, h, material, x, y, z, rx = 0, ry = 0, rz = 0) {
   m.rotation.set(rx, ry, rz);
   return m;
 }
+/* One rib of the rolling shutter. Its UVs are remapped to the matching
+   horizontal slice of the shared shutter texture so the ribs line up. */
+function shutterSlat(w, h, d, material, slice, slices) {
+  const geo = new THREE.BoxGeometry(w, h, d);
+  const uv = geo.attributes.uv;
+  const y0 = 1 - (slice + 1) / slices;
+  for (let i = 0; i < uv.count; i++) uv.setY(i, y0 + uv.getY(i) / slices);
+  uv.needsUpdate = true;
+  return new THREE.Mesh(geo, material);
+}
 
 export class World {
   constructor(container) {
@@ -32,8 +43,11 @@ export class World {
     this.targetYaw = 0; this.targetPitch = 0;
     this.lookEnabled = false;
     this.time = 0;
+    this.profile = deviceProfile();
     this.door = { left: 0, right: 0 };
     this.doorTarget = { left: 0, right: 0 };
+    this.dread = { left: 0, right: 0 };
+    this.hallScare = { left: 0, right: 0, next: 9 + Math.random() * 10 };
     this.light = { left: 0, right: 0 };
     this.lightTarget = { left: 0, right: 0 };
     this.powerLevel = 1;
@@ -65,15 +79,18 @@ export class World {
       antialias: true, alpha: false, powerPreference: 'high-performance',
       stencil: false, preserveDrawingBuffer: false
     });
-    const mobile = window.matchMedia?.('(max-width: 760px), (pointer: coarse)').matches;
-    this.pixelRatioCap = mobile ? 1.5 : 2;
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, this.pixelRatioCap));
+    const p = this.profile;
+    this.pixelRatioCap = p.tier === 'high' ? 2 : p.mobile ? 1.5 : 2;
+    this.renderer.setPixelRatio(Math.min(p.dpr, this.pixelRatioCap));
     this.renderer.setSize(window.innerWidth, window.innerHeight);
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    this.renderer.toneMappingExposure = 1.12;
+    this.renderer.toneMappingExposure = 1.16;
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    // Keep the floor and wallpaper crisp as they fall away from the camera.
+    try { setMaxAnisotropy(this.renderer.capabilities.getMaxAnisotropy()); } catch (e) { /* non fatal */ }
+    setTextureScale(p.tier === 'mid' ? 1 : 2);
     this.container.appendChild(this.renderer.domElement);
 
     this.scene = new THREE.Scene();
@@ -292,31 +309,50 @@ export class World {
       const hazardMat = new THREE.MeshStandardMaterial({ map: hazardTexture(), roughness: .82 });
       const threshold = plane(.16, OFFICE.doorW + .1, hazardMat, doorX + faceX * .02, .013, OFFICE.doorZ, -Math.PI / 2);
       this.office.add(threshold);
-      const warning = plane(.42, .1, new THREE.MeshStandardMaterial({ map: hazardTexture(), roughness: .8 }), doorX + faceX * .045, OFFICE.doorH + .3, OFFICE.doorZ, 0, side < 0 ? Math.PI / 2 : -Math.PI / 2);
+      const warning = plane(.42, .1, new THREE.MeshStandardMaterial({ map: hazardTexture(), roughness: .8 }), doorX + faceX * .02, OFFICE.doorH + .34, OFFICE.doorZ, 0, side < 0 ? Math.PI / 2 : -Math.PI / 2);
       this.office.add(warning);
 
-      // Shutter — a single steel panel that slides straight up on Z-aligned rails.
+      // Rolling shutter. The panel is split into horizontal slats that are
+      // revealed top-down from the lintel, so its travel never crosses the
+      // wall, ceiling or header. Each slat samples its own slice of the
+      // shutter texture, keeping the ribs continuous as the door moves.
       const sg = new THREE.Group();
       sg.position.set(doorX, 0, OFFICE.doorZ);
       this.office.add(sg);
-      const shutter = box(.09, OFFICE.doorH, OFFICE.doorW, shutterM, faceX * .05, OFFICE.doorH / 2, 0);
-      shutter.castShadow = true; shutter.receiveShadow = true;
-      sg.add(shutter);
-      for (const zs of [-1, 1]) {
-        sg.add(box(.08, OFFICE.doorH + .16, .07, steelM, faceX * .105, OFFICE.doorH / 2, zs * (OFFICE.doorW / 2 + .045)));
+      const SLICES = 18;
+      const slatH = OFFICE.doorH / SLICES;
+      const panelW = OFFICE.doorW - .07;
+      const panelX = faceX * .06;
+      const slats = [];
+      for (let i = 0; i < SLICES; i++) {
+        const s = shutterSlat(.055, slatH - .004, panelW, shutterM, i, SLICES);
+        s.position.set(panelX, OFFICE.doorH - (i + .5) * slatH, 0);
+        s.castShadow = true; s.receiveShadow = true;
+        sg.add(s);
+        slats.push(s);
       }
-      // roller drum + housing above the opening
-      sg.add(box(.34, .2, OFFICE.doorW + .3, frameM, faceX * .01, OFFICE.doorH + .21, 0));
-      const drum = new THREE.Mesh(new THREE.CylinderGeometry(.1, .1, OFFICE.doorW + .17, 18), steelM);
+      const bottomBar = box(.075, .065, panelW + .02, steelM, panelX, .033, 0);
+      bottomBar.castShadow = true; bottomBar.receiveShadow = true;
+      sg.add(bottomBar);
+      const hazardDecal = plane(panelW * .8, .1, hazardMat, panelX + faceX * .04, .16, 0, 0, side < 0 ? Math.PI / 2 : -Math.PI / 2);
+      sg.add(hazardDecal);
+      // fixed guide rails, inset so they sit inside the opening
+      for (const zs of [-1, 1]) {
+        sg.add(box(.04, OFFICE.doorH + .02, .05, steelM, faceX * .075, (OFFICE.doorH + .02) / 2, zs * (OFFICE.doorW / 2 - .045)));
+      }
+      // roller drum + housing, seated on the lintel so the closed panel tucks
+      // up into it instead of leaving a gap above the doorway
+      sg.add(box(.28, .2, OFFICE.doorW + .16, frameM, faceX * .16, OFFICE.doorH + .09, 0));
+      const drum = new THREE.Mesh(new THREE.CylinderGeometry(.1, .1, panelW + .08, 18), steelM);
       drum.rotation.x = Math.PI / 2;
-      drum.position.set(faceX * .01, OFFICE.doorH + .19, 0);
+      drum.position.set(faceX * .16, OFFICE.doorH + .08, 0);
       drum.castShadow = true;
       sg.add(drum);
       // warning light strip + halo on the roller housing
-      const strip = box(.045, .035, OFFICE.doorW * .78, new THREE.MeshBasicMaterial({ color: 0x52140f, transparent: true, opacity: .9 }), faceX * .19, OFFICE.doorH + .2, 0);
+      const strip = box(.045, .035, OFFICE.doorW * .78, new THREE.MeshBasicMaterial({ color: 0x52140f, transparent: true, opacity: .9 }), faceX * .305, OFFICE.doorH + .09, 0);
       sg.add(strip);
       const stripGlow = this._glow(0xff3b26, .62, .01);
-      stripGlow.position.set(faceX * .26, OFFICE.doorH + .2, 0);
+      stripGlow.position.set(faceX * .37, OFFICE.doorH + .09, 0);
       sg.add(stripGlow);
 
       // button panel (visual only)
@@ -329,7 +365,10 @@ export class World {
       panel.position.set(doorX + faceX * .17, 1.34, OFFICE.doorZ + .92);
       this.office.add(panel);
       this.doors = this.doors || {};
-      this.doors[key] = { shutter, shutterHeight: OFFICE.doorH, group: sg, strip, stripGlow, b1, b2, frame };
+      this.doors[key] = {
+        slats, slatH, bottomBar, hazard: hazardDecal,
+        group: sg, strip, stripGlow, b1, b2, frame
+      };
 
       // hall
       this._buildHall(side, key, floorM, wall, wains, trim, ceil);
@@ -459,6 +498,29 @@ export class World {
     );
     cone.position.set(side * (OFFICE.w + 1.6), .19, OFFICE.doorZ + .45);
     g.add(cone);
+    // A shape waiting at the far end of the hall. Almost invisible in the
+    // dark, but its eye-shine catches the camera now and then.
+    const figure = new THREE.Group();
+    const figMat = new THREE.MeshStandardMaterial({ color: 0x070504, roughness: 1 });
+    const torso = new THREE.Mesh(new THREE.CapsuleGeometry(.17, .52, 4, 8), figMat);
+    torso.position.y = 1.12;
+    const head = new THREE.Mesh(new THREE.SphereGeometry(.115, 10, 8), figMat);
+    head.position.y = 1.62;
+    figure.add(torso, head);
+    figure.position.set(side * (OFFICE.w + len - 1.15), 0, OFFICE.doorZ);
+    figure.rotation.y = side < 0 ? Math.PI / 2 : -Math.PI / 2;
+    figure.visible = false;
+    g.add(figure);
+    const hallEyes = [];
+    for (const ez of [-.05, .05]) {
+      const e = this._glow(0xffd39a, .085, 0);
+      e.position.set(side * (OFFICE.w + len - 1.15) - side * .12, 1.63, OFFICE.doorZ + ez);
+      g.add(e);
+      hallEyes.push(e);
+    }
+    this.doors[key].hallFigure = figure;
+    this.doors[key].hallEyes = hallEyes;
+
     this.scene.add(g);
     this.doors[key].hall = g;
 
@@ -496,21 +558,21 @@ export class World {
     this.officeLight = new THREE.PointLight(0xffd0a0, 9.5, 13, 1.25);
     this.officeLight.position.set(0, 2.66, .3);
     this.officeLight.castShadow = true;
-    const mobile = window.matchMedia?.('(max-width: 760px), (pointer: coarse)').matches;
-    const shadowResolution = mobile ? 1024 : 2048;
+    const shadowResolution = this.profile.tier === 'high' ? 2048 : this.profile.mobile ? 1024 : 2048;
     this.officeLight.shadow.mapSize.set(shadowResolution, shadowResolution);
-    this.officeLight.shadow.bias = -0.0016;
+    this.officeLight.shadow.bias = -0.0014;
+    this.officeLight.shadow.normalBias = .018;
     this.officeLight.shadow.camera.near = .2;
     this.officeLight.shadow.camera.far = 14;
     this.scene.add(this.officeLight);
 
     // soft fill that keeps the wall art readable without flattening the room
-    this.frontFill = new THREE.PointLight(0xffc994, 2.2, 7.5, 1.5);
+    this.frontFill = new THREE.PointLight(0xffc994, 1.5, 7.5, 1.5);
     this.frontFill.position.set(0, 2.15, -1.75);
     this.office.add(this.frontFill);
 
     // cool bounce from the back wall — separates the silhouette from the wall
-    this.rimLight = new THREE.PointLight(0x6c88a8, 2.4, 6.5, 2);
+    this.rimLight = new THREE.PointLight(0x6c88a8, 1.9, 6.5, 2);
     this.rimLight.position.set(0, 1.95, 3.1);
     this.office.add(this.rimLight);
 
@@ -539,6 +601,11 @@ export class World {
     this.deskLight = new THREE.PointLight(0xffc07a, 2.8, 3.1, 2);
     this.deskLight.position.set(-1.9, 1.25, .55);
     this.office.add(this.deskLight);
+
+    // Red emergency practical: only comes alive when the mains fail.
+    this.emergency = new THREE.PointLight(0xff1d10, 0, 5.5, 2);
+    this.emergency.position.set(0, 2.4, 2.35);
+    this.office.add(this.emergency);
   }
 
   _buildDesk() {
@@ -905,6 +972,43 @@ export class World {
       b.rotation.y = (i - 1) * .15; b.castShadow = true; g.add(b);
     }
 
+    // ---- noticeboards, posters and extinguishers on the side walls, so the
+    // long stretches beside the doorways are not bare wallpaper
+    const corkM = new THREE.MeshStandardMaterial({ color: 0x6b4d2f, roughness: 1 });
+    const boardFrameM = new THREE.MeshStandardMaterial({ color: 0x2f2418, roughness: .8 });
+    const posterMats = [
+      new THREE.MeshStandardMaterial({ map: posterTexture('safety'), roughness: .9 }),
+      new THREE.MeshStandardMaterial({ map: posterTexture('employee'), roughness: .92 })
+    ];
+    for (const side of [-1, 1]) {
+      const ry = side < 0 ? Math.PI / 2 : -Math.PI / 2;
+      const wx = side * (OFFICE.w - .012);
+      // cork board with a wooden frame
+      g.add(plane(.96, .72, boardFrameM, side * (OFFICE.w - .008), 1.74, 1.05, 0, ry));
+      g.add(plane(.86, .62, corkM, wx, 1.74, 1.05, 0, ry));
+      const papers = [posterTexture('kids'), paperTexture(4), paperTexture(6)];
+      for (let i = 0; i < 3; i++) {
+        const p = plane(.22, .28, new THREE.MeshStandardMaterial({ map: papers[i], roughness: .95 }),
+          side * (OFFICE.w - .02), 1.78 + (i % 2 ? .06 : -.05), .8 + i * .22, 0, ry);
+        p.rotation.z = (i - 1) * .07;
+        g.add(p);
+      }
+      // framed safety poster further along the wall
+      g.add(plane(.5, .68, boardFrameM, side * (OFFICE.w - .008), 1.7, 2.45, 0, ry));
+      g.add(plane(.44, .62, posterMats[side < 0 ? 0 : 1], side * (OFFICE.w - .014), 1.7, 2.45, 0, ry));
+      // extinguisher beside the doorway
+      const ext = new THREE.Group();
+      ext.position.set(side * (OFFICE.w - .16), .58, .42);
+      const body = new THREE.Mesh(new THREE.CylinderGeometry(.075, .075, .42, 14), mat({ color: 0xa52a20, roughness: .42, metalness: .35 }));
+      ext.add(body);
+      const neck = new THREE.Mesh(new THREE.CylinderGeometry(.03, .04, .1, 10), darkMetal);
+      neck.position.y = .25; ext.add(neck);
+      const hose = new THREE.Mesh(new THREE.TorusGeometry(.055, .012, 5, 12, Math.PI * 1.2), mat({ color: 0x0d0c0a, roughness: .85 }));
+      hose.position.set(0, .19, .07); ext.add(hose);
+      ext.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
+      g.add(ext);
+    }
+
     // ---- pencil cup + mug + radio on the desk
     const cupMat = mat({ color: 0x6a6252, roughness: .55, metalness: .2 });
     const pencilCup = new THREE.Mesh(new THREE.CylinderGeometry(.055, .045, .13, 12), cupMat);
@@ -1171,6 +1275,7 @@ export class World {
   setCornerCharacter(side, type) {
     this.ensureOfficeCharacters();
     this.cornerPresence[side] = type;
+    this.dread[side] = type ? 1 : 0;
     const active = new Set([this.cornerPresence.left, this.cornerPresence.right].filter(Boolean));
     for (const k in this._officeChars) {
       if (k === 'foxy') continue;
@@ -1193,6 +1298,7 @@ export class World {
     if (!this._officeChars) return;
     for (const k in this._officeChars) this._officeChars[k].group.visible = false;
     this.cornerPresence = { left: null, right: null };
+    this.dread = { left: 0, right: 0 };
   }
 
   /* ============================================================ SCARES */
@@ -1247,8 +1353,8 @@ export class World {
     if (mode === 'office') {
       this.camera.position.copy(this.cameraBase);
       this.yaw = this.targetYaw = 0; this.pitch = this.targetPitch = -0.07;
-      this.officeLight.intensity = 10;
-      this.ambient.intensity = .38;
+      this.officeLight.intensity = 13;
+      this.ambient.intensity = .26;
     }
   }
 
@@ -1264,6 +1370,7 @@ export class World {
     if (this.rimLight) this.rimLight.intensity = 0;
     this.ambient.intensity = .045;
     this.redWash.intensity = .02;
+    if (this.emergency) this.emergency.intensity = .9;
     this.lightPanel.material.emissiveIntensity = 0;
     this.setDoor('left', false); this.setDoor('right', false);
     this.setLight('left', false); this.setLight('right', false);
@@ -1272,12 +1379,13 @@ export class World {
   }
   unblackout() {
     this.blackedOut = false;
-    this.officeLight.intensity = 10;
+    this.officeLight.intensity = 13;
     this.deskLight.intensity = 2.6;
     this.monitorLight.intensity = 1.6;
-    if (this.rimLight) this.rimLight.intensity = 2.4;
-    this.ambient.intensity = .38;
+    if (this.rimLight) this.rimLight.intensity = 1.9;
+    this.ambient.intensity = .26;
     this.redWash.intensity = .6;
+    if (this.emergency) this.emergency.intensity = 0;
     this.lightPanel.material.emissiveIntensity = 2.2;
   }
 
@@ -1291,6 +1399,9 @@ export class World {
     this.unblackout();
     this.flicker = 0;
     this._cheer = 0;
+    this.dread = { left: 0, right: 0 };
+    this.hallScare = { left: 0, right: 0, next: 9 + Math.random() * 10 };
+    if (this.emergency) this.emergency.intensity = 0;
   }
 
   addFlicker(v) { this.flicker = Math.max(this.flicker, v); }
@@ -1325,10 +1436,27 @@ export class World {
         }
         const d = this.doors[side];
         const closed = this.door[side];
-        // Retract the panel into the lintel instead of translating it through
-        // the ceiling/wall; at every point it stays inside the door opening.
-        d.shutter.scale.y = Math.max(.001, closed);
-        d.shutter.position.y = OFFICE.doorH - d.shutterHeight * closed / 2;
+        // Reveal the shutter top-down. The leading edge (bottom bar) rises
+        // inside the opening, so no part of the panel ever leaves the doorway.
+        const yB = OFFICE.doorH * (1 - closed);
+        for (let i = 0; i < d.slats.length; i++) {
+          const s = d.slats[i];
+          const top = OFFICE.doorH - i * d.slatH;
+          const bottom = top - d.slatH;
+          if (top <= yB + .001) { if (s.visible) s.visible = false; continue; }
+          const vb = Math.max(bottom, yB);
+          const vh = top - vb;
+          if (vh <= .002) { s.visible = false; continue; }
+          s.visible = true;
+          s.scale.y = vh / d.slatH;
+          s.position.y = vb + vh / 2;
+        }
+        d.bottomBar.visible = closed > .01;
+        d.bottomBar.position.y = yB + .033;
+        if (d.hazard) {
+          d.hazard.visible = closed > .06;
+          d.hazard.position.y = yB + .16;
+        }
         d.strip.material.color.setHex(closed > .1 ? 0xff3b26 : 0x52140f);
         d.strip.material.opacity = closed > .1 ? .95 : .55;
         if (d.stripGlow) {
@@ -1346,16 +1474,59 @@ export class World {
         if (this.light[side] > .02) d.light.color.setHex(0xffb56a);
       }
 
+      // Dread: when something is standing in a doorway the room breathes with
+      // it — a faint camera shake and a pulse of red wash.
+      const dread = Math.max(this.dread.left, this.dread.right);
+      if (dread > 0 && !this.blackedOut) {
+        const amp = .011 * dread;
+        this.camera.position.x += (Math.random() - .5) * amp;
+        this.camera.position.y += (Math.random() - .5) * amp;
+        this.camera.rotation.z += (Math.random() - .5) * .008 * dread;
+        this.redWash.intensity = Math.max(this.redWash.intensity, .55 + Math.sin(t * 4.2) * .3 * dread);
+      } else {
+        this.redWash.intensity += (.6 - this.redWash.intensity) * Math.min(1, dt * 2.5);
+      }
+
+      // Hall presence: a silhouette and two pinpricks of eye-shine at the far
+      // end of an open hall. The light does not have to be on to see the eyes.
+      if (this.hallScare.next > 0) this.hallScare.next -= dt;
+      if (this.hallScare.next <= 0) {
+        this.hallScare.next = 13 + Math.random() * 16;
+        const openSides = ['left', 'right'].filter(s => this.door[s] < .45 && !this.cornerPresence[s]);
+        if (openSides.length) {
+          const s = openSides[Math.floor(Math.random() * openSides.length)];
+          this.hallScare[s] = 1.5 + Math.random() * 1.8;
+        }
+      }
+      for (const side of ['left', 'right']) {
+        const d = this.doors[side];
+        if (!d || !d.hallFigure) continue;
+        if (this.hallScare[side] > 0) {
+          this.hallScare[side] = Math.max(0, this.hallScare[side] - dt);
+          const on = this.hallScare[side] > 0;
+          d.hallFigure.visible = on;
+          const flick = .35 + Math.random() * .6;
+          d.hallEyes.forEach((e, i) => { e.material.opacity = on ? flick * (i ? .72 : 1) : 0; });
+          if (on) {
+            d.hallFigure.position.z = OFFICE.doorZ + Math.sin(t * .8 + (side === 'left' ? 0 : 2)) * .04;
+            d.hallFigure.rotation.y = (side === 'left' ? Math.PI / 2 : -Math.PI / 2) + Math.sin(t * .55) * .05;
+          }
+        } else {
+          if (d.hallFigure.visible) d.hallFigure.visible = false;
+          d.hallEyes.forEach(e => { if (e.material.opacity) e.material.opacity = 0; });
+        }
+      }
+
       // office flicker
       const powerDip = this.powerLevel < .2 ? (1 - this.powerLevel) * .5 : 0;
       const f = this.flicker + (Math.random() < .004 ? .35 + Math.random() * .4 : 0) + powerDip * (Math.random() < .05 ? .4 : 0);
       this.flicker = Math.max(0, this.flicker - dt * 3.2);
       if (!this.blackedOut) {
         const dim = 1 - Math.min(.8, f);
-        this.officeLight.intensity = 12 * dim;
+        this.officeLight.intensity = 13 * dim;
         this.lightPanel.material.emissiveIntensity = 2.2 * dim;
         this.deskLight.intensity = 2.8 * (1 - f * .7);
-        if (this.frontFill) this.frontFill.intensity = 2.2 * dim;
+        if (this.frontFill) this.frontFill.intensity = 1.5 * dim;
         const hb = 1 + Math.sin(t * 2.7) * .04 + Math.sin(t * 8.3) * .02;
         this.monitorLight.intensity = 1.6 * hb;
         this.officeLight.position.x = Math.sin(t * 1.1) * .05;
@@ -1364,12 +1535,16 @@ export class World {
         if (this.monGlow) this.monGlow.material.opacity = .46 * (0.8 + Math.random() * .35);
         if (this.lampGlow) this.lampGlow.material.opacity = .5 * (0.85 + Math.sin(t * 6.2) * .1);
         if (this.lightShaft) this.lightShaft.material.opacity = .021 * dim;
-        if (this.rimLight) this.rimLight.intensity = 2.4 * dim;
+        if (this.rimLight) this.rimLight.intensity = 1.9 * dim;
       } else {
         if (this.panelGlow) this.panelGlow.material.opacity = 0;
         if (this.monGlow) this.monGlow.material.opacity = 0;
         if (this.lampGlow) this.lampGlow.material.opacity = 0;
         if (this.lightShaft) this.lightShaft.material.opacity = 0;
+        if (this.emergency) {
+          const blink = Math.random() < .12 ? .08 : 1;
+          this.emergency.intensity = (.5 + Math.random() * .55) * blink;
+        }
       }
       if (this.doors) {
         for (const side of ['left', 'right']) {
@@ -1456,7 +1631,7 @@ export class World {
         this._cheer = Math.max(0, this._cheer - dt * .22);
         this.officeLight.intensity = Math.max(this.officeLight.intensity, 10 + this._cheer * 34);
         this.lightPanel.material.emissiveIntensity = Math.max(this.lightPanel.material.emissiveIntensity, 2.2 + this._cheer * 7);
-        this.ambient.intensity = .38 + this._cheer * 1.5;
+        this.ambient.intensity = .26 + this._cheer * 1.5;
       }
     } else if (this.menuGroup.visible) {
       // menu camera drift

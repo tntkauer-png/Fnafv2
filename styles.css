@@ -400,6 +400,15 @@ body.power-low .fx-vignette{
   animation:lowPulse 1.8s ease-in-out infinite;
 }
 @keyframes lowPulse{50%{opacity:.78}}
+body.power-critical .fx-vignette{
+  background:
+    radial-gradient(ellipse 68% 56% at 50% 48%,transparent 26%,rgba(150,14,8,.45) 68%,rgba(0,0,0,.94) 100%),
+    linear-gradient(180deg,rgba(20,0,0,.5),transparent 16%,transparent 64%,rgba(0,0,0,.72));
+  animation:critPulse 1.05s ease-in-out infinite;
+}
+@keyframes critPulse{0%,100%{opacity:.92}50%{opacity:.66}}
+body.power-critical #scene canvas{filter:saturate(.48) contrast(1.14) brightness(.76)}
+body.power-critical .fx-scan{opacity:.06}
 .cam-body{touch-action:pan-y}
 .cam-tablet{touch-action:manipulation}
 #scene canvas{transition:filter .5s}

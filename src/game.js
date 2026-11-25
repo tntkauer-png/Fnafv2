@@ -53,8 +53,9 @@ export class Game {
     this.stats = null;
     this.lureCd = 0;
     this.lureCooldown = 26;
-    this.lureCost = 2.0;
+    this.lureCost = 1.5;
     this.lureT = 0;
+    this._heartT = 0;
     this._warned = { twenty: false, ten: false };
   }
 
@@ -91,6 +92,7 @@ export class Game {
     this.foxy = { stage: 0, timer: 17, running: false, runT: 0, side: 'left' };
     this.lureCd = 0;
     this.lureT = 0;
+    this._heartT = 0;
     this._warned = { twenty: false, ten: false };
     this.ai = {
       bonnie: this._makeAI('bonnie', 6.0, 6.4),
@@ -295,6 +297,16 @@ export class Game {
     if (!this.blackout) {
       this._updatePower(dt);
       if (this.blackout) return;
+      // A heartbeat creeps in when the meter gets low.
+      if (this.power < 20) {
+        this._heartT -= dt;
+        if (this._heartT <= 0) {
+          this._heartT = this.power < 10 ? .92 : 1.35;
+          this.audio.heartbeat(this.power < 10 ? 1.35 : .85);
+        }
+      } else {
+        this._heartT = .4;
+      }
       this._updateAI(dt);
       this._updateFoxy(dt);
       if (!this._warned.twenty && this.power <= 20) {
@@ -321,13 +333,13 @@ export class Game {
   }
 
   _updatePower(dt) {
-    const base = .05 * this.levels.drain;
+    const base = .03 * this.levels.drain;
     let drain = base;
-    if (this.doors.left) drain += .185;
-    if (this.doors.right) drain += .185;
-    if (this.lights.left) drain += .12;
-    if (this.lights.right) drain += .12;
-    if (this.camOpen) drain += .115;
+    if (this.doors.left) drain += .11;
+    if (this.doors.right) drain += .11;
+    if (this.lights.left) drain += .07;
+    if (this.lights.right) drain += .07;
+    if (this.camOpen) drain += .07;
     this.power -= drain * dt;
     if (this.power <= 0) {
       this.power = 0;
@@ -425,6 +437,7 @@ export class Game {
     if (pos === 'dining') this.audio.step(a.side === 'left' ? -.4 : .4, .85);
     else if (pos.includes('Hall')) this.audio.step(a.side === 'left' ? -.72 : .72, 1);
     else this.audio.servo(a.side === 'left' ? -.3 : .3);
+    if (Math.random() < .16) this.audio.whisper(a.side === 'left' ? -.55 : .55);
     this.events.onMove?.(a.name, pos);
   }
 
